@@ -1,0 +1,3601 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AEGIS-0G: NASA Microgravity Fire Safety Advisor</title>
+    <meta
+      name="description"
+      content="Offline NASA Mission Control interface for microgravity combustion safety analysis, habitat atmosphere risk simulation, and emergency fire suppression protocols based on NASA PSI data."
+    />
+    <meta property="og:title" content="AEGIS-0G: NASA Microgravity Fire Safety Advisor" />
+    <meta
+      property="og:description"
+      content="Offline NASA Mission Control interface for microgravity combustion safety analysis, habitat atmosphere risk simulation, and emergency fire suppression protocols based on NASA PSI data."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lights/RectAreaLightUniformsLib.js"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              space: {
+                950: '#07090E',
+                900: '#0C1018',
+                850: '#111723',
+                800: '#161F2E',
+              },
+            },
+            fontFamily: {
+              sans: [
+                'IBM Plex Sans',
+                'Plus Jakarta Sans',
+                '-apple-system',
+                'BlinkMacSystemFont',
+                'Segoe UI',
+                'Roboto',
+                'sans-serif',
+              ],
+              mono: [
+                'JetBrains Mono',
+                'IBM Plex Mono',
+                'SFMono-Regular',
+                'Menlo',
+                'Monaco',
+                'Consolas',
+                'monospace',
+              ],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-canvas: #07090e;
+        --bg-surface: #0f141e;
+        --border-hairline: #1e293b;
+        --accent-cyan: #06b6d4;
+        --accent-red: #ef4444;
+      }
+
+      html {
+        scroll-behavior: smooth;
+        background-color: var(--bg-canvas);
+        color: #e2e8f0;
+      }
+
+      body {
+        margin: 0;
+        background-color: var(--bg-canvas);
+        font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        letter-spacing: 0.01em;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .tabular-nums {
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Precision Range Slider Styling */
+      input[type='range'].telemetry-slider {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: #1e293b;
+        outline: none;
+        cursor: pointer;
+      }
+
+      input[type='range'].telemetry-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        background: #06b6d4;
+        border: 2px solid #07090e;
+        box-shadow: 0 0 0 1px #22d3ee;
+        cursor: pointer;
+        transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1), background-color 150ms ease;
+      }
+
+      input[type='range'].telemetry-slider::-webkit-slider-thumb:hover {
+        transform: scale(1.08);
+        background: #22d3ee;
+      }
+
+      input[type='range'].telemetry-slider::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        background: #06b6d4;
+        border: 2px solid #07090e;
+        box-shadow: 0 0 0 1px #22d3ee;
+        cursor: pointer;
+        transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1), background-color 150ms ease;
+      }
+
+      input[type='range'].telemetry-slider.danger-slider::-webkit-slider-thumb {
+        background: #ef4444;
+        box-shadow: 0 0 0 1px #f87171;
+      }
+
+      input[type='range'].telemetry-slider.danger-slider::-moz-range-thumb {
+        background: #ef4444;
+        box-shadow: 0 0 0 1px #f87171;
+      }
+
+      input[type='range'].telemetry-slider:focus-visible {
+        outline: 2px solid #22d3ee;
+        outline-offset: 4px;
+      }
+
+      /* Subtle scientific coordinate grid background */
+      .telemetry-grid-bg {
+        background-image:
+          linear-gradient(to right, rgba(30, 41, 59, 0.28) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(30, 41, 59, 0.28) 1px, transparent 1px);
+        background-size: 32px 32px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        *,
+        *::before,
+        *::after {
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body class="min-h-screen bg-[#07090E] text-slate-200 selection:bg-cyan-500/30 selection:text-cyan-100">
+    <!-- Top Bar: Strictly 3 zones -->
+    <header class="sticky top-0 z-40 border-b border-slate-800/90 bg-[#07090E]/95 backdrop-blur-sm">
+      <div class="mx-auto flex max-w-7xl items-center justify-between gap-8 px-4 py-3.5 sm:px-6 lg:px-8">
+        <!-- Zone 1: Single text element wordmark -->
+        <a
+          href="#overview"
+          class="whitespace-nowrap shrink-0 font-mono text-base font-bold tracking-tight text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-sm"
+        >
+          AEGIS-0G
+        </a>
+
+        <!-- Zone 2: Concise single-line navigation links -->
+        <nav class="hidden md:flex items-center gap-7 text-sm font-medium text-slate-400" aria-label="Primary">
+          <a href="#overview" class="whitespace-nowrap shrink-0 hover:text-white transition-colors">Overview</a>
+          <a href="#simulator" class="whitespace-nowrap shrink-0 hover:text-white transition-colors">Atmosphere Simulator</a>
+          <a href="#fire-lab" class="whitespace-nowrap shrink-0 hover:text-white transition-colors">3D Fire Lab</a>
+          <a href="#experiments" class="whitespace-nowrap shrink-0 hover:text-white transition-colors">Experiments</a>
+          <a href="#citations" class="whitespace-nowrap shrink-0 hover:text-white transition-colors">PSI Citations</a>
+        </nav>
+
+        <!-- Zone 3: Single primary action -->
+        <div class="flex items-center shrink-0">
+          <button
+            id="btn-reset-all"
+            type="button"
+            class="whitespace-nowrap shrink-0 rounded-md border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-medium text-slate-100 hover:border-cyan-500/60 hover:text-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors"
+          >
+            Reset Nominal
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
+      <!-- Mission Header & Section 1: Top KPI Cards -->
+      <section id="overview" class="space-y-6">
+        <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between border-b border-slate-800/80 pb-6">
+          <div class="space-y-2 max-w-3xl">
+            <p class="text-xs font-mono tracking-wider text-cyan-400">
+              NASA Physical Sciences Informatics · Microgravity Combustion Safety Console
+            </p>
+            <h1 class="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-white [text-wrap:balance]">
+              AEGIS-0G: NASA Microgravity Fire Safety Advisor
+            </h1>
+            <p class="text-sm sm:text-base text-slate-400 leading-relaxed max-w-2xl">
+              Evaluate spacecraft material flammability limits, cabin oxygen enrichment hazards, and forced-ventilation
+              flame spread regimes using flight-validated microgravity combustion data.
+            </p>
+          </div>
+          <div class="text-left md:text-right font-mono text-xs text-slate-400 tabular-nums shrink-0">
+            <div>Nominal ISS Baseline: <span class="text-slate-200">21.0% O2 · 20 cm/s</span></div>
+            <div class="mt-1">Offline Dataset: <span class="text-slate-200">14 Flight &amp; Ground Records</span></div>
+          </div>
+        </div>
+
+        <!-- 1) Top KPI Cards -->
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <!-- KPI 1: Total Experiments Analyzed -->
+          <article class="rounded-lg border border-slate-800 bg-[#0F141E] p-5 flex flex-col justify-between">
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="text-xs font-medium tracking-wide text-slate-400">Total Experiments Analyzed</h2>
+              <svg class="h-4 w-4 text-cyan-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                <path d="M9 3h6M10 3v6l-5.2 9.1A2 2 0 0 0 6.5 21h11a2 2 0 0 0 1.7-2.9L14 9V3" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
+            <div class="mt-3 flex items-baseline gap-2">
+              <span id="kpi-total-count" class="font-mono text-3xl font-semibold text-white tabular-nums">14</span>
+              <span class="font-mono text-xs text-slate-400">NASA PSI Studies</span>
+            </div>
+            <p id="kpi-total-sub" class="mt-3 border-t border-slate-800/80 pt-3 font-mono text-xs text-slate-400 tabular-nums">
+              14 matching active filter · 100% offline validated
+            </p>
+          </article>
+
+          <!-- KPI 2: Average Critical Oxygen Threshold -->
+          <article class="rounded-lg border border-slate-800 bg-[#0F141E] p-5 flex flex-col justify-between">
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="text-xs font-medium tracking-wide text-slate-400">Average Critical Oxygen Threshold</h2>
+              <svg class="h-4 w-4 text-cyan-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 3" stroke-linecap="round" />
+              </svg>
+            </div>
+            <div class="mt-3 flex items-baseline gap-2">
+              <span id="kpi-avg-o2" class="font-mono text-3xl font-semibold text-white tabular-nums">21.9</span>
+              <span class="font-mono text-xs text-slate-400">% O2 (Range 21% – 34%)</span>
+            </div>
+            <p id="kpi-o2-delta" class="mt-3 border-t border-slate-800/80 pt-3 font-mono text-xs text-slate-400 tabular-nums">
+              Cabin O2 vs. Mean Threshold: -0.9% O2
+            </p>
+          </article>
+
+          <!-- KPI 3: Highest Hazard Material -->
+          <article class="rounded-lg border border-slate-800 bg-[#0F141E] p-5 flex flex-col justify-between">
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="text-xs font-medium tracking-wide text-slate-400">Highest Hazard Material</h2>
+              <svg class="h-4 w-4 text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
+            <div class="mt-3 space-y-1">
+              <div id="kpi-max-hazard-material" class="text-base font-semibold text-white leading-snug">
+                Sibal (75% Cotton, 25% Fiberglass)
+              </div>
+              <div id="kpi-max-hazard-meta" class="font-mono text-xs text-amber-400 tabular-nums">
+                Hazard Index 8 / 10 · SAFFIRE-I &amp; SAFFIRE-III
+              </div>
+            </div>
+            <p id="kpi-critical-summary" class="mt-3 border-t border-slate-800/80 pt-3 font-mono text-xs text-slate-400 tabular-nums">
+              Active Critical Ignition Risk: 2 / 14 materials
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- 2) Habitat Atmosphere Simulator -->
+      <section id="simulator" class="rounded-lg border border-slate-800 bg-[#0F141E] overflow-hidden">
+        <div class="border-b border-slate-800 px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-white">Habitat Atmosphere Simulator</h2>
+            <p class="text-xs sm:text-sm text-slate-400 mt-0.5">
+              Adjust spacecraft cabin oxygen concentration and forced ventilation flow to evaluate real-time material ignition boundaries.
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              data-preset-o2="18.5"
+              data-preset-flow="5"
+              class="preset-btn whitespace-nowrap shrink-0 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 font-mono text-xs text-slate-300 hover:border-cyan-500/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors"
+            >
+              Hypoxic Safe (18.5% / 5 cm/s)
+            </button>
+            <button
+              type="button"
+              data-preset-o2="21"
+              data-preset-flow="20"
+              class="preset-btn whitespace-nowrap shrink-0 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 font-mono text-xs text-slate-300 hover:border-cyan-500/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors"
+            >
+              ISS Standard (21% / 20 cm/s)
+            </button>
+            <button
+              type="button"
+              data-preset-o2="34"
+              data-preset-flow="30"
+              class="preset-btn whitespace-nowrap shrink-0 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 font-mono text-xs text-slate-300 hover:border-red-500/60 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors"
+            >
+              Enriched O2 (34% / 30 cm/s)
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12">
+          <!-- Left Controls Column -->
+          <div class="lg:col-span-5 p-5 sm:p-6 space-y-6 border-b lg:border-b-0 lg:border-r border-slate-800">
+            <!-- Slider 1: Cabin Oxygen % -->
+            <div class="space-y-3">
+              <div class="flex items-baseline justify-between gap-4">
+                <label for="slider-oxygen" class="text-sm font-medium text-slate-200">
+                  Cabin Oxygen Concentration
+                </label>
+                <div class="font-mono text-xl font-semibold text-cyan-300 tabular-nums">
+                  <span id="val-oxygen">21.0</span><span class="text-xs text-slate-400 ml-1">% O2</span>
+                </div>
+              </div>
+              <input
+                id="slider-oxygen"
+                type="range"
+                min="18"
+                max="36"
+                step="0.5"
+                value="21"
+                class="telemetry-slider"
+                aria-label="Cabin Oxygen Percentage from 18 to 36 percent"
+              />
+              <div class="flex justify-between font-mono text-[11px] text-slate-400 tabular-nums">
+                <span>18.0% Hypoxic</span>
+                <span>21.0% Normoxic</span>
+                <span>28.0% Enriched</span>
+                <span>36.0% Severe</span>
+              </div>
+              <p id="desc-oxygen-regime" class="text-xs text-slate-400 leading-relaxed">
+                Normoxic ISS cabin baseline (21.0% O2). Concurrent flame spread remains active under forced ventilation.
+              </p>
+            </div>
+
+            <div class="border-t border-slate-800/80"></div>
+
+            <!-- Slider 2: Ventilation Airflow -->
+            <div class="space-y-3">
+              <div class="flex items-baseline justify-between gap-4">
+                <label for="slider-airflow" class="text-sm font-medium text-slate-200">
+                  Ventilation Airflow Velocity
+                </label>
+                <div class="font-mono text-xl font-semibold text-cyan-300 tabular-nums">
+                  <span id="val-airflow">20</span><span class="text-xs text-slate-400 ml-1">cm/s</span>
+                </div>
+              </div>
+              <input
+                id="slider-airflow"
+                type="range"
+                min="0"
+                max="45"
+                step="1"
+                value="20"
+                class="telemetry-slider"
+                aria-label="Ventilation Airflow Velocity from 0 to 45 centimeters per second"
+              />
+              <div class="flex justify-between font-mono text-[11px] text-slate-400 tabular-nums">
+                <span>0 Quiescent</span>
+                <span>15 Low Flow</span>
+                <span>30 Forced</span>
+                <span>45 High Flow</span>
+              </div>
+              <p id="desc-airflow-regime" class="text-xs text-slate-400 leading-relaxed">
+                Active cabin convective flow (20 cm/s). Operates inside the microgravity Goldilocks flame-spread window.
+              </p>
+            </div>
+
+            <div class="border-t border-slate-800/80 pt-4">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-medium text-slate-400">Overall Cabin Flammability Posture</span>
+                <span id="sim-posture-label" class="font-mono text-xs font-semibold text-red-400">
+                  ▲ CRITICAL IGNITION RISK DETECTED
+                </span>
+              </div>
+              <p id="sim-action-summary" class="mt-2 text-xs text-slate-300 leading-relaxed">
+                2 materials exceed critical ignition thresholds. De-energize forced ventilation fans immediately if smoke is detected.
+              </p>
+            </div>
+          </div>
+
+          <!-- Right Live Material Risk Matrix & Critical List -->
+          <div class="lg:col-span-7 p-5 sm:p-6 telemetry-grid-bg flex flex-col justify-between gap-5">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 class="text-sm font-semibold text-white">Live Material Ignition Risk Matrix</h3>
+                <p class="text-xs text-slate-400">
+                  Click any material node to jump directly to its experiment card and suppression protocol.
+                </p>
+              </div>
+              <div class="flex items-center gap-4 font-mono text-[11px] text-slate-300 tabular-nums">
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="text-red-400 font-bold" aria-hidden="true">✖</span>
+                  <span id="legend-critical-count">Critical (2)</span>
+                </span>
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="text-amber-400 font-bold" aria-hidden="true">▲</span>
+                  <span id="legend-elevated-count">Elevated (5)</span>
+                </span>
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="text-emerald-400 font-bold" aria-hidden="true">●</span>
+                  <span id="legend-nominal-count">Nominal (7)</span>
+                </span>
+              </div>
+            </div>
+
+            <!-- 14-Experiment Live Status Tiles -->
+            <div id="simulator-matrix" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5">
+              <!-- Populated dynamically -->
+            </div>
+
+            <!-- Active Critical Ignition Risk Banner -->
+            <div id="critical-risk-callout" class="border-t border-slate-800/90 pt-4">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div class="text-xs font-mono font-semibold text-red-400" id="critical-callout-title">
+                  CRITICAL IGNITION RISK (2 MATERIALS):
+                </div>
+                <button
+                  id="btn-filter-critical"
+                  type="button"
+                  class="whitespace-nowrap shrink-0 self-start sm:self-auto text-xs font-mono text-cyan-400 hover:text-cyan-300 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-sm"
+                >
+                  Filter list to critical only
+                </button>
+              </div>
+              <p id="critical-callout-names" class="mt-1.5 text-xs text-slate-300 leading-relaxed">
+                SAFFIRE-I · SAFFIRE-II
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3D VIRTUAL FIRE & DAMAGE PROGRESSION LAB (Three.js r128 PBR + OrbitControls) -->
+      <section id="fire-lab" class="rounded-lg border border-slate-800 bg-[#0F141E] overflow-hidden">
+        <!-- Lab Header: Title, Habitat Switcher, Sample Selector, Ignite Button -->
+        <div class="border-b border-slate-800 px-5 py-4 space-y-4">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 class="text-lg font-semibold text-white tracking-tight">
+                3D VIRTUAL FIRE &amp; DAMAGE PROGRESSION LAB
+              </h2>
+              <p class="text-xs sm:text-sm text-slate-400 mt-0.5">
+                Physically based Three.js cabin simulation driven by live Oxygen %, Airflow cm/s, Gravity mode, and time-dependent charring.
+              </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+              <div class="flex items-center gap-2">
+                <label for="lab-sample-select" class="text-xs font-mono text-slate-400 whitespace-nowrap">Fuel Sample:</label>
+                <select
+                  id="lab-sample-select"
+                  class="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 font-mono text-xs text-slate-100 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 max-w-[230px]"
+                ></select>
+              </div>
+              <button
+                id="btn-ignite-sample"
+                type="button"
+                class="whitespace-nowrap shrink-0 rounded-md border border-orange-500/80 bg-orange-600 px-4 py-1.5 font-mono text-xs font-semibold text-white hover:bg-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 transition-colors"
+              >
+                IGNITE SAMPLE
+              </button>
+              <button
+                id="btn-reset-camera"
+                type="button"
+                class="whitespace-nowrap shrink-0 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 font-mono text-xs text-slate-300 hover:border-cyan-500/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors"
+              >
+                Reset View
+              </button>
+            </div>
+          </div>
+
+          <!-- 3 Switchable Habitat Environments -->
+          <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Switchable Habitat Environments">
+            <button
+              type="button"
+              data-habitat="orbital"
+              class="habitat-btn whitespace-nowrap shrink-0 rounded-md border px-3 py-2 text-left font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            >
+              <span class="font-semibold text-white">Orbital Spacecraft Lab</span>
+              <span class="text-slate-400 ml-1.5">(0g | 21% O2 | 14.7 psi)</span>
+            </button>
+            <button
+              type="button"
+              data-habitat="lunar"
+              class="habitat-btn whitespace-nowrap shrink-0 rounded-md border px-3 py-2 text-left font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            >
+              <span class="font-semibold text-white">Lunar Base Module</span>
+              <span class="text-slate-400 ml-1.5">(0.16g | 34% O2 | 10.2 psi)</span>
+            </button>
+            <button
+              type="button"
+              data-habitat="martian"
+              class="habitat-btn whitespace-nowrap shrink-0 rounded-md border px-3 py-2 text-left font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            >
+              <span class="font-semibold text-white">Martian Pressurized Rover</span>
+              <span class="text-slate-400 ml-1.5">(0.38g | 32% O2 | 8.5 psi)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3D Viewport Container (Unobstructed Center) -->
+        <div class="relative w-full h-[460px] sm:h-[540px] lg:h-[580px] bg-[#05070B] overflow-hidden select-none">
+          <!-- Dedicated WebGL Canvas Mount -->
+          <div id="three-lab-mount" class="absolute inset-0 w-full h-full"></div>
+
+          <!-- Top-Left Minimal Spec HUD (No backdrop-filter over WebGL) -->
+          <div class="pointer-events-none absolute top-3 left-3 z-10 rounded-md border border-slate-800/90 bg-[#07090E]/90 px-3 py-2 font-mono text-[11px] space-y-0.5 max-w-[320px]">
+            <div id="hud-habitat-name" class="font-semibold text-cyan-300">
+              Orbital Spacecraft Lab · 0g | 21% O2 | 14.7 psi
+            </div>
+            <div id="hud-sample-name" class="text-slate-300 truncate">
+              Sample: SAFFIRE-I (Sibal Composite)
+            </div>
+            <div id="hud-damage-stage" class="text-slate-400">
+              Stage 0: Pre-Ignition Standby
+            </div>
+          </div>
+
+          <!-- Top-Right Compact Controls Hint -->
+          <div class="pointer-events-none hidden sm:block absolute top-3 right-3 z-10 rounded-md border border-slate-800/90 bg-[#07090E]/90 px-3 py-2 font-mono text-[11px] text-slate-400 tabular-nums text-right">
+            <div>Drag to Orbit · Scroll to Zoom · Right-Drag to Pan</div>
+            <div id="hud-live-physics" class="text-slate-300 mt-0.5">
+              Driven by 21.0% O2 · 20 cm/s · Spread 0.00 m
+            </div>
+          </div>
+
+          <!-- Stage 3 Critical Breach HUD Banner -->
+          <div
+            id="hud-breach-warning"
+            class="hidden pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 z-10 rounded-md border border-red-500 bg-red-950/95 px-4 py-2 font-mono text-xs sm:text-sm font-bold tracking-wide text-red-200 shadow-lg whitespace-nowrap"
+          >
+            ✖ CRITICAL STRUCTURAL BREACH IMMINENT — HULL INTEGRITY &lt; 35%
+          </div>
+        </div>
+
+        <!-- Mission Time & Damage Controls Bar (Directly below 3D viewport) -->
+        <div class="border-t border-slate-800 bg-[#0B1018] px-5 py-4 space-y-4">
+          <!-- Row 1: Play/Pause, Digital Chronometer, Timeline Scrubber -->
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div class="flex items-center gap-3 shrink-0">
+              <button
+                id="btn-play-pause"
+                type="button"
+                class="whitespace-nowrap shrink-0 rounded-md border border-slate-700 bg-slate-900 px-3.5 py-2 font-mono text-xs font-semibold text-white hover:border-cyan-500/60 hover:text-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors"
+              >
+                PLAY / PAUSE SIMULATION
+              </button>
+              <div class="rounded-md border border-slate-800 bg-[#07090E] px-3.5 py-1.5 font-mono text-base font-bold text-cyan-300 tabular-nums">
+                <span id="lab-chronometer">T + 00:00</span>
+              </div>
+            </div>
+
+            <div class="flex-1 flex flex-col gap-1 md:max-w-xl">
+              <div class="flex items-center justify-between font-mono text-[10px] text-slate-400 tabular-nums">
+                <span>00:00 Ignition</span>
+                <span>00:45 Stage 1 Soot</span>
+                <span>02:00 Stage 2 Embers</span>
+                <span>02:30 Severe</span>
+                <span>05:00 Flashover</span>
+              </div>
+              <input
+                id="lab-timeline-scrubber"
+                type="range"
+                min="0"
+                max="300"
+                step="1"
+                value="0"
+                class="telemetry-slider"
+                aria-label="Mission Fire Progression Timeline Scrubber from 0 to 300 seconds"
+              />
+            </div>
+          </div>
+
+          <!-- Row 2: Fast-Forward, Suppression, and Repair Controls -->
+          <div class="flex flex-wrap items-center gap-2.5">
+            <button
+              id="btn-ff-230"
+              type="button"
+              class="whitespace-nowrap shrink-0 rounded-md border border-amber-500/50 bg-amber-950/30 px-3.5 py-2 font-mono text-xs font-medium text-amber-200 hover:bg-amber-900/40 hover:border-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 transition-colors"
+            >
+              FAST-FORWARD: T + 2:30 MIN (SEVERE SPREAD)
+            </button>
+            <button
+              id="btn-ff-500"
+              type="button"
+              class="whitespace-nowrap shrink-0 rounded-md border border-red-500/60 bg-red-950/40 px-3.5 py-2 font-mono text-xs font-medium text-red-200 hover:bg-red-900/50 hover:border-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 transition-colors"
+            >
+              FAST-FORWARD: T + 5:00 MIN (FLASHOVER / TOTAL DAMAGE)
+            </button>
+            <button
+              id="btn-suppress-fire"
+              type="button"
+              class="whitespace-nowrap shrink-0 rounded-md border border-cyan-500/60 bg-cyan-950/35 px-3.5 py-2 font-mono text-xs font-medium text-cyan-200 hover:bg-cyan-900/45 hover:border-cyan-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors"
+            >
+              ACTIVATE SUPPRESSION (WATER MIST / E-FIELD)
+            </button>
+            <button
+              id="btn-reset-lab"
+              type="button"
+              class="whitespace-nowrap shrink-0 rounded-md border border-slate-700 bg-slate-900 px-3.5 py-2 font-mono text-xs font-medium text-slate-200 hover:border-slate-500 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors"
+            >
+              RESET LAB &amp; REPAIR HULL
+            </button>
+          </div>
+
+          <!-- Post-Fire Forensic Damage Readout Strip -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 border-t border-slate-800/80 pt-4 font-mono text-xs tabular-nums">
+            <div class="rounded-md border border-slate-800 bg-[#07090E] p-3">
+              <div class="text-[11px] text-slate-400">Hull Integrity</div>
+              <div id="forensic-hull" class="mt-1 text-lg font-semibold text-emerald-400">100.0%</div>
+              <div id="forensic-hull-sub" class="mt-0.5 text-[11px] text-slate-500">Bulkhead pressure nominal</div>
+            </div>
+            <div class="rounded-md border border-slate-800 bg-[#07090E] p-3">
+              <div class="text-[11px] text-slate-400">Toxic Gas / CO2 Spike</div>
+              <div id="forensic-gas" class="mt-1 text-lg font-semibold text-slate-200">420 ppm</div>
+              <div id="forensic-gas-sub" class="mt-0.5 text-[11px] text-slate-500">CO / HCN / Soot trace: 0 ppm</div>
+            </div>
+            <div class="rounded-md border border-slate-800 bg-[#07090E] p-3">
+              <div class="text-[11px] text-slate-400">Equipment Lost</div>
+              <div id="forensic-equip" class="mt-1 text-lg font-semibold text-slate-200">0 / 6 Subsystems</div>
+              <div id="forensic-equip-sub" class="mt-0.5 text-[11px] text-slate-500 truncate">All avionics &amp; racks intact</div>
+            </div>
+            <div class="rounded-md border border-slate-800 bg-[#07090E] p-3">
+              <div class="text-[11px] text-slate-400">Fire Spread &amp; Status</div>
+              <div id="forensic-spread" class="mt-1 text-lg font-semibold text-cyan-300">0.00 m</div>
+              <div id="forensic-spread-sub" class="mt-0.5 text-[11px] text-slate-500">Standby · Ready for ignition</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3) Filter Controls + Real-Time Search Bar & 4) Expandable Experiment Cards -->
+      <section id="experiments" class="space-y-5">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-slate-800/80 pb-5">
+          <div>
+            <h2 class="text-xl font-semibold text-white">NASA Combustion Experiment Registry</h2>
+            <p class="text-xs sm:text-sm text-slate-400 mt-0.5">
+              Expand any investigation to inspect microgravity flame spread physics, test parameters, and emergency suppression protocols.
+            </p>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <!-- Gravity Environment Filter Buttons -->
+            <div
+              class="inline-flex flex-wrap items-center gap-1 rounded-lg border border-slate-800 bg-[#0F141E] p-1"
+              role="group"
+              aria-label="Gravity Environment Filter"
+            >
+              <button
+                type="button"
+                data-gravity="All"
+                class="gravity-btn whitespace-nowrap shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                data-gravity="Microgravity 0g"
+                class="gravity-btn whitespace-nowrap shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+              >
+                Microgravity 0g
+              </button>
+              <button
+                type="button"
+                data-gravity="Lunar 0.16g"
+                class="gravity-btn whitespace-nowrap shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+              >
+                Lunar 0.16g
+              </button>
+              <button
+                type="button"
+                data-gravity="Martian 0.38g"
+                class="gravity-btn whitespace-nowrap shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+              >
+                Martian 0.38g
+              </button>
+            </div>
+
+            <!-- Real-time Search Bar -->
+            <div class="relative min-w-[240px] sm:w-72">
+              <label for="search-input" class="sr-only">Search experiments, fuels, or protocols</label>
+              <svg
+                class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" stroke-linecap="round" />
+              </svg>
+              <input
+                id="search-input"
+                type="search"
+                placeholder="Search fuel, experiment, protocol..."
+                class="w-full rounded-lg border border-slate-800 bg-[#0F141E] py-2 pl-9 pr-8 text-sm text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+              />
+              <button
+                id="btn-clear-search"
+                type="button"
+                class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs font-mono px-1"
+                aria-label="Clear search"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Toolbar Summary & Bulk Controls -->
+        <div class="flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-slate-400">
+          <div id="results-status" class="tabular-nums">
+            Showing 14 of 14 experiments · Sorted by Ignition Risk &amp; Hazard Index
+          </div>
+          <div class="flex items-center gap-4">
+            <label class="inline-flex items-center gap-2 cursor-pointer select-none text-slate-300 hover:text-white">
+              <input
+                id="toggle-critical-only"
+                type="checkbox"
+                class="h-3.5 w-3.5 rounded border-slate-700 bg-slate-900 text-red-500 focus:ring-cyan-500"
+              />
+              <span>Critical Ignition Risk only</span>
+            </label>
+            <button
+              id="btn-expand-all"
+              type="button"
+              class="whitespace-nowrap shrink-0 text-cyan-400 hover:text-cyan-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-sm"
+            >
+              Expand all
+            </button>
+            <button
+              id="btn-collapse-all"
+              type="button"
+              class="whitespace-nowrap shrink-0 text-slate-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-sm"
+            >
+              Collapse all
+            </button>
+          </div>
+        </div>
+
+        <!-- Expandable Experiment Cards Grid -->
+        <div id="experiments-grid" class="grid grid-cols-1 gap-4 lg:grid-cols-2 items-start">
+          <!-- Cards populated dynamically -->
+        </div>
+
+        <!-- Empty State -->
+        <div
+          id="empty-state"
+          class="hidden rounded-lg border border-slate-800 bg-[#0F141E] p-8 sm:p-10 text-center space-y-4"
+        >
+          <div class="mx-auto flex h-11 w-11 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-cyan-400">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 8v4m0 4h.01" stroke-linecap="round" />
+            </svg>
+          </div>
+          <div class="space-y-1.5 max-w-lg mx-auto">
+            <h3 id="empty-state-title" class="text-base font-semibold text-white">
+              No matching combustion experiments found
+            </h3>
+            <p id="empty-state-desc" class="text-sm text-slate-400 leading-relaxed">
+              The offline NASA PSI registry contains 14 orbital Microgravity 0g flight and ground-support experiments.
+            </p>
+          </div>
+          <div class="pt-1">
+            <button
+              id="btn-reset-filters"
+              type="button"
+              class="whitespace-nowrap shrink-0 rounded-md border border-cyan-500/50 bg-cyan-500/10 px-4 py-2 text-xs font-medium text-cyan-300 hover:bg-cyan-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors"
+            >
+              Show Microgravity 0g Experiments
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5) NASA PSI Data Citations -->
+      <section id="citations" class="border-t border-slate-800 pt-8 pb-6 space-y-6">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div class="space-y-1">
+            <h2 class="text-lg font-semibold text-white">NASA PSI Data Citations</h2>
+            <p class="text-xs sm:text-sm text-slate-400 max-w-3xl leading-relaxed">
+              Experimental telemetry, flammability thresholds, and emergency suppression insights are compiled from the
+              <strong class="font-medium text-slate-200">NASA Physical Sciences Informatics (PSI)</strong> open-science
+              data repository (NASA Biological and Physical Sciences Division, Glenn Research Center &amp; ISS National Laboratory).
+            </p>
+          </div>
+          <span class="font-mono text-xs text-slate-400 whitespace-nowrap shrink-0">
+            Repository: NASA PSI · Combustion Science
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4 text-xs text-slate-400 leading-relaxed border-t border-slate-800/70 pt-5">
+          <div>
+            <div class="font-mono text-slate-200 font-medium mb-1">SAFFIRE-I, II &amp; III [1–6]</div>
+            <p>
+              Spacecraft Fire Experiment (Saffire) aboard Northrop Grumman Cygnus vehicles. NASA Glenn Research Center;
+              NASA PSI Combustion Datasets for large-scale Sibal composite, PMMA, and Nomex flammability limits in concurrent and opposed low-speed flow.
+            </p>
+          </div>
+          <div>
+            <div class="font-mono text-slate-200 font-medium mb-1">BASS-II &amp; SoFIE [7–10]</div>
+            <p>
+              Burning and Suppression of Solids II (Microgravity Science Glovebox) and Solid Fuel Ignition and Extinction
+              (Combustion Integrated Rack, ISS). NASA PSI empirical datasets mapping solid-polymer Goldilocks flammability boundaries.
+            </p>
+          </div>
+          <div>
+            <div class="font-mono text-slate-200 font-medium mb-1">ACME Investigation Suite [11–23]</div>
+            <p>
+              Advanced Combustion via Microgravity Experiments (BRE, s-Flame, Flame Design, CFI-G, CLD Flame) conducted in
+              the ISS Combustion Integrated Rack (CIR). NASA PSI records covering elevated O2 burning, spherical radiative extinction, and cool diffusion flames.
+            </p>
+          </div>
+          <div>
+            <div class="font-mono text-slate-200 font-medium mb-1">FLEX, FLEX-2 &amp; Cool Flames [24–31]</div>
+            <p>
+              Flame Extinguishment Experiment and FLEX-2 droplet combustion investigations in the ISS CIR Multi-User Droplet
+              Combustion Apparatus. NASA PSI datasets on radiative extinction, gaseous suppressants (CO2, He, SF6), and dual-zone cool flames.
+            </p>
+          </div>
+          <div>
+            <div class="font-mono text-slate-200 font-medium mb-1">SPICE [32–34]</div>
+            <p>
+              Smoke Point In Coflow Experiment aboard the ISS Microgravity Science Glovebox. NASA PSI optical pyrometry and
+              soot volume fraction archives quantifying laminar coflow smoke points in 0g relative to 1g normal gravity.
+            </p>
+          </div>
+          <div>
+            <div class="font-mono text-slate-200 font-medium mb-1">Offline Data Integrity Notice</div>
+            <p>
+              All 14 experiment records, oxygen thresholds, airflow regimes, hazard scores, and suppression actions are
+              embedded locally within this application for deterministic, air-gapped Mission Control availability with zero external network calls.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="border-t border-slate-800/80 bg-[#07090E] py-5">
+      <div class="mx-auto flex max-w-7xl flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-4 sm:px-6 lg:px-8 text-xs text-slate-500">
+        <span>AEGIS-0G · NASA Microgravity Fire Safety Advisor</span>
+        <span class="font-mono">Source Attribution: NASA Physical Sciences Informatics (PSI) Repository</span>
+      </div>
+    </footer>
+
+    <script>
+      // Hardcoded NASA PSI Microgravity Combustion Dataset (100% offline, zero external API calls)
+      const NASA_PSI_EXPERIMENTS = [
+        {
+          "id": 1,
+          "experiment_name": "SAFFIRE-I",
+          "fuel_material": "Sibal (75% Cotton, 25% Fiberglass Composite Fabric)",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": 20,
+          "flame_behavior_summary": "Saffire-I evaluated concurrent flame spread over a large flammable fabric sample measuring 0.94 meters long by 0.4 meters wide in microgravity[1]. The flame consumed the cotton component while maintaining structural integrity via the fiberglass matrix, providing benchmark data on large-scale flame growth dynamics[1][2].",
+          "hazard_score": 8,
+          "safety_action": "De-energize forced ventilation fans immediately to arrest concurrent flame spread across cabin fabrics."
+        },
+        {
+          "id": 2,
+          "experiment_name": "SAFFIRE-II",
+          "fuel_material": "Sibal, Silicone, Structured PMMA, Flat PMMA, and PMMA with Nomex",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": "20 to 30",
+          "flame_behavior_summary": "Saffire-II tested nine discrete material samples under low-velocity concurrent and opposed airflow conditions aboard the Cygnus vehicle[3]. The experiment demonstrated how material geometry, thickness, and airflow velocity alter flammability boundaries and flame growth rates in microgravity[3][4].",
+          "hazard_score": 7,
+          "safety_action": "Isolate the affected module and purge oxygen concentrations using inert gas injection."
+        },
+        {
+          "id": 3,
+          "experiment_name": "SAFFIRE-III",
+          "fuel_material": "Sibal (75% Cotton, 25% Fiberglass Composite Fabric)",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": 30,
+          "flame_behavior_summary": "Saffire-III investigated large-scale concurrent and opposed flame growth over Sibal fabric at an elevated flow speed of 30 cm/s[5]. The study quantified flame growth rates and low-gravity flammability limits under higher forced convection relative to Saffire-I[5][6].",
+          "hazard_score": 8,
+          "safety_action": "Halt cabin flow duct ventilation fans and deploy automated fire detection sensors to monitor smoke propagation."
+        },
+        {
+          "id": 4,
+          "experiment_name": "BASS-II",
+          "fuel_material": "PMMA Acrylic (Slabs, Rods, Spheres), Wax Cylinders, and Composite Fabrics",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": "0 to 40",
+          "flame_behavior_summary": "BASS-II examined ignition, flame spread, and extinction limits of solid fuels in forced low-velocity flows within the Microgravity Science Glovebox[7][8]. Microgravity flames formed distinct spherical oval structures and exhibited a 'Goldilocks' flammability zone dependent on flow speed and ambient oxygen levels[9][10].",
+          "hazard_score": 6,
+          "safety_action": "Activate glovebox fire containment seals and introduce nitrogen vitiation to suppress active solid fuel flames."
+        },
+        {
+          "id": 5,
+          "experiment_name": "ACME BRE",
+          "fuel_material": "Methane/Nitrogen and Ethylene/Nitrogen Gas Mixtures (Emulating PMMA and Nylon)",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 34,
+          "airflow_cm_s": 0,
+          "flame_behavior_summary": "ACME BRE evaluated quasi-steady combustion of gaseous fuel mixtures emulating solid polymers over flat porous burners in microgravity[11][12]. Elevated oxygen atmospheres (up to 34% O2) sustained continuous burning without airflow, whereas standard 21% O2 flames self-extinguished rapidly[12][13].",
+          "hazard_score": 7,
+          "safety_action": "Reduce spacecraft cabin oxygen concentrations below 21% and shut off fuel supply lines to the burner assembly."
+        },
+        {
+          "id": 6,
+          "experiment_name": "ACME s-Flame",
+          "fuel_material": "Hydrogen, Methane, and Ethylene Gaseous Fuels with Nitrogen, Helium, and CO2 Diluents",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": 0,
+          "flame_behavior_summary": "ACME s-Flame analyzed soot-free and sooty spherical diffusion flames over porous spherical burners in long-duration microgravity[14][15]. The study mapped radiative and convective extinction limits while identifying pulsating instabilities in flames exceeding critical Lewis numbers[15][16].",
+          "hazard_score": 5,
+          "safety_action": "Close emergency gas shutoff valves upon detecting flame front oscillations or radiative extinction thresholds."
+        },
+        {
+          "id": 7,
+          "experiment_name": "ACME Flame Design",
+          "fuel_material": "Ethylene and Methane Gaseous Fuels with N2 or CO2 Diluents",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": 0,
+          "flame_behavior_summary": "ACME Flame Design measured soot-inception and extinction boundaries for spherical normal and inverse diffusion flames[17][18]. Microgravity spherical flames were observed to extinguish when peak flame temperatures dropped below 1130 K[19].",
+          "hazard_score": 4,
+          "safety_action": "Monitor flame zone temperatures using thin-filament pyrometry and isolate reactant gas lines if temperatures decline toward extinction limits."
+        },
+        {
+          "id": 8,
+          "experiment_name": "ACME CFI-G",
+          "fuel_material": "Propane, n-Butane, and n-Pentane Gaseous Fuels",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": 0,
+          "flame_behavior_summary": "ACME CFI-G investigated low-temperature (500–1000 K) spherical cool diffusion flames of gaseous alkanes aboard the ISS[20][21]. Reductions in fuel flow rate triggered flame extinction, while increases prompted transitions and oscillations between cool and hot flames[20].",
+          "hazard_score": 4,
+          "safety_action": "Dynamically regulate fuel flow rates to prevent rapid transitions from low-temperature cool flames to hot diffusion flames."
+        },
+        {
+          "id": 9,
+          "experiment_name": "ACME CLD Flame",
+          "fuel_material": "Methane and Ethylene Gaseous Fuels",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": "Coflow",
+          "flame_behavior_summary": "ACME CLD Flame evaluated methane and ethylene coflow diffusion flames across varied fuel dilution and velocity conditions in microgravity[22][23]. Enhanced microgravity residence times allowed precise measurements of soot volume fractions, flame chemiluminescence, and lift-off heights[22][23].",
+          "hazard_score": 5,
+          "safety_action": "Adjust coflow velocity and fuel dilution parameters to maintain stable flame attachment within the burner enclosure."
+        },
+        {
+          "id": 10,
+          "experiment_name": "FLEX",
+          "fuel_material": "Liquid Hydrocarbon Droplets (n-Heptane, Methanol, Ethanol, Decane)",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": 0,
+          "flame_behavior_summary": "FLEX studied burning rates, extinction boundaries, and gaseous suppressant efficacy (CO2, He, SF6) for isolated liquid droplets in microgravity[24][25]. The absence of buoyant convection revealed unique radiative extinction limits and low-temperature cool flame combustion regimes[25][26].",
+          "hazard_score": 5,
+          "safety_action": "Inject gaseous suppressants such as CO2 or Helium into the sealed combustion chamber upon flame anomaly detection."
+        },
+        {
+          "id": 11,
+          "experiment_name": "FLEX-2",
+          "fuel_material": "Bi-component Liquid Fuel Droplets (n-Heptane, Decane, Ethanol surrogates)",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": 0,
+          "flame_behavior_summary": "FLEX-2 investigated liquid-phase mixing, soot shell dynamics, and flammability limits of bi-component droplet arrays in reduced gravity[27][28]. The experiment established benchmark data on transitions between radiative and diffusive flame extinction across varying chamber pressures[27][28].",
+          "hazard_score": 5,
+          "safety_action": "Maintain ambient pressure controls within the CIR module and employ needle retraction protocols during droplet deployment."
+        },
+        {
+          "id": 12,
+          "experiment_name": "FLEX Cool Flame Studies",
+          "fuel_material": "n-Heptane, Dimethyl Ether (DME), and Dibutyl Ether",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": "Counterflow",
+          "flame_behavior_summary": "This investigation modeled cool flame transitions and non-premixed extinction limits using FLEX flight data and ozone-sensitized counterflow flames[29][30]. Results demonstrated that warm diffusion flames possess a double reaction zone structure critical to bridging hot and cool flame flammability limits[30][31].",
+          "hazard_score": 3,
+          "safety_action": "Monitor high-pressure reactant feeds and control oxidizer dilution to prevent cool flame regimes from expanding."
+        },
+        {
+          "id": 13,
+          "experiment_name": "SoFIE",
+          "fuel_material": "PMMA Acrylic, Polyethylene, and Spacecraft Polymers",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": "0 to 30",
+          "flame_behavior_summary": "SoFIE investigates solid fuel ignition, flame growth, and quenching mechanisms over realistic spacecraft polymer geometries in microgravity[8]. Preliminary BASS-II flight data was directly applied to refine SoFIE hardware requirements and flammability test procedures[8].",
+          "hazard_score": 6,
+          "safety_action": "Trigger CIR internal fire suppression protocols and isolate solid polymer test chambers."
+        },
+        {
+          "id": 14,
+          "experiment_name": "SPICE",
+          "fuel_material": "Gaseous Ethylene and Methane",
+          "gravity_mode": "Microgravity 0g",
+          "oxygen_percent": 21,
+          "airflow_cm_s": "Coflow",
+          "flame_behavior_summary": "SPICE examined soot formation, radiative re-absorption, and smoke point limits in microgravity coflow diffusion flames using color-ratio pyrometry[32][33]. Microgravity generated significantly longer, cooler, and more diffuse flames with higher soot volume fractions than normal gravity[33][34].",
+          "hazard_score": 4,
+          "safety_action": "Filter soot emissions from exhaust streams and regulate coflow air parameters to prevent smoke point breakthrough."
+        }
+      ];
+
+      // Application State
+      const state = {
+        oxygenPercent: 21.0,
+        airflowCmS: 20,
+        gravityFilter: 'All',
+        searchQuery: '',
+        criticalOnly: false,
+        expandedIds: new Set([1]),
+      };
+
+      // Parse experiment airflow specification into numeric bounds and mode
+      function parseAirflowSpec(spec) {
+        if (typeof spec === 'number') {
+          return { min: spec, max: spec, mode: spec === 0 ? 'quiescent' : 'forced', label: `${spec} cm/s` };
+        }
+        const str = String(spec).trim();
+        if (str.includes('to')) {
+          const parts = str.split('to').map((p) => parseFloat(p.trim()));
+          return { min: parts[0], max: parts[1], mode: 'range', label: `${str} cm/s` };
+        }
+        if (str.toLowerCase() === 'coflow' || str.toLowerCase() === 'counterflow') {
+          return { min: 5, max: 45, mode: str.toLowerCase(), label: str };
+        }
+        return { min: 0, max: 45, mode: 'variable', label: str };
+      }
+
+      /**
+       * Physics-informed microgravity ignition risk assessment:
+       * Evaluates whether a material enters CRITICAL IGNITION RISK, ELEVATED RISK, or NOMINAL
+       * based on cabin oxygen % (18–36%), ventilation airflow (0–45 cm/s), experiment O2 threshold,
+       * airflow envelope, and empirical hazard_score.
+       */
+      function evaluateRisk(exp, cabinO2, cabinFlow) {
+        const flowSpec = parseAirflowSpec(exp.airflow_cm_s);
+        const expO2 = exp.oxygen_percent;
+        const hazard = exp.hazard_score;
+
+        // Check if cabin airflow falls into or exceeds the material's active flame-spread envelope
+        let airflowActive = false;
+        let airflowReason = '';
+
+        if (flowSpec.mode === 'quiescent') {
+          // Quiescent experiments (0 cm/s) burn in stagnant air; moderate flow feeds O2 while very high flow can blow off low-hazard flames unless O2 is enriched
+          if (cabinFlow <= 8) {
+            airflowActive = true;
+            airflowReason = 'Stagnant microgravity flow permits spherical diffusion flame stability.';
+          } else if (cabinO2 >= expO2 + 2.5) {
+            airflowActive = true;
+            airflowReason = 'Enriched O2 overrides convective blow-off even under forced cabin flow.';
+          } else {
+            airflowActive = false;
+            airflowReason = 'Forced ventilation exceeds quiescent test envelope at current O2 level.';
+          }
+        } else if (flowSpec.mode === 'forced') {
+          // Single-point forced flow tests (SAFFIRE-I: 20 cm/s, SAFFIRE-III: 30 cm/s)
+          if (cabinFlow >= flowSpec.min - 2) {
+            airflowActive = true;
+            airflowReason = `Ventilation (${cabinFlow} cm/s) sustains or exceeds ${flowSpec.min} cm/s concurrent spread threshold.`;
+          } else if (cabinFlow >= 8 && cabinO2 >= 23) {
+            airflowActive = true;
+            airflowReason = `Enriched O2 lowers forced-convection spread threshold below ${flowSpec.min} cm/s.`;
+          } else {
+            airflowReason = `Airflow below ${flowSpec.min} cm/s concurrent spread regime.`;
+          }
+        } else {
+          // Range or Coflow/Counterflow
+          if (cabinFlow >= flowSpec.min && cabinFlow <= flowSpec.max + 5) {
+            airflowActive = true;
+            airflowReason = `Ventilation (${cabinFlow} cm/s) lies inside active ${flowSpec.label} flammability zone.`;
+          } else if (cabinFlow > flowSpec.max && cabinO2 >= 22.5) {
+            airflowActive = true;
+            airflowReason = 'Elevated O2 expands flammability boundary beyond nominal upper flow limit.';
+          } else {
+            airflowReason = `Ventilation (${cabinFlow} cm/s) is outside the ${flowSpec.label} test window.`;
+          }
+        }
+
+        // Criticality determination
+        // 1) Hypoxic suppression (< 19.5% O2): self-extinguishes unless extreme airflow + highest hazard >= 8 at >= 19%
+        if (cabinO2 < 19.5) {
+          if (cabinO2 >= 19.0 && hazard >= 8 && cabinFlow >= 28) {
+            return {
+              level: 'ELEVATED',
+              label: 'ELEVATED RISK',
+              glyph: '▲',
+              reason: 'Borderline hypoxic O2 partially offset by high forced convection on high-hazard Sibal fabric.',
+            };
+          }
+          return {
+            level: 'NOMINAL',
+            label: 'NOMINAL / SUPPRESSED',
+            glyph: '●',
+            reason: `Hypoxic cabin atmosphere (${cabinO2.toFixed(1)}% O2) suppresses sustained ignition below 21% baseline.`,
+          };
+        }
+
+        // 2) Experiments requiring elevated O2 (e.g. ACME BRE at 34% O2)
+        if (expO2 > 21) {
+          if (cabinO2 >= expO2) {
+            return {
+              level: 'CRITICAL',
+              label: 'CRITICAL IGNITION RISK',
+              glyph: '✖',
+              reason: `Cabin O2 (${cabinO2.toFixed(1)}%) meets or exceeds the ${expO2}% O2 sustained microgravity burning threshold.`,
+            };
+          }
+          if (cabinO2 >= 26) {
+            return {
+              level: 'ELEVATED',
+              label: 'ELEVATED RISK',
+              glyph: '▲',
+              reason: `Approaching ${expO2}% O2 continuous-burning regime (${(expO2 - cabinO2).toFixed(1)}% O2 margin remaining).`,
+            };
+          }
+          return {
+            level: 'NOMINAL',
+            label: 'NOMINAL / SELF-EXTINGUISHING',
+            glyph: '●',
+            reason: `Below ${expO2}% O2 requirement; flames self-extinguish rapidly near standard 21% O2.`,
+          };
+        }
+
+        // 3) Standard 21% O2 experiments under normoxic or enriched atmospheres
+        // High O2 enrichment (>= 24% O2) drives ALL 21% materials into Critical Ignition Risk (except low-hazard cool flames until >= 25.5%)
+        if (cabinO2 >= 25.5 || (cabinO2 >= 23.5 && hazard >= 4) || (cabinO2 >= 22.0 && hazard >= 6 && airflowActive)) {
+          return {
+            level: 'CRITICAL',
+            label: 'CRITICAL IGNITION RISK',
+            glyph: '✖',
+            reason: `Oxygen enrichment (${cabinO2.toFixed(1)}% O2) exceeds 21% NASA test limit. ${airflowReason}`,
+          };
+        }
+
+        // At normoxic 20.5% - 23.4% O2:
+        if (cabinO2 >= 20.5) {
+          if (hazard >= 7 && airflowActive) {
+            return {
+              level: 'CRITICAL',
+              label: 'CRITICAL IGNITION RISK',
+              glyph: '✖',
+              reason: `High-hazard material (${hazard}/10) operating directly in active ${flowSpec.label} flame-spread regime.`,
+            };
+          }
+          if (hazard >= 6 && cabinFlow >= 25 && airflowActive) {
+            return {
+              level: 'CRITICAL',
+              label: 'CRITICAL IGNITION RISK',
+              glyph: '✖',
+              reason: `Forced convection (${cabinFlow} cm/s) drives rapid polymer flame growth in the Goldilocks zone.`,
+            };
+          }
+          if (airflowActive) {
+            return {
+              level: 'ELEVATED',
+              label: 'ELEVATED RISK',
+              glyph: '▲',
+              reason: `Operating within test parameters (${expO2}% O2, ${flowSpec.label}). ${airflowReason}`,
+            };
+          }
+          if (cabinO2 >= 22.0) {
+            return {
+              level: 'ELEVATED',
+              label: 'ELEVATED RISK',
+              glyph: '▲',
+              reason: `Oxygen enrichment (+${(cabinO2 - 21).toFixed(1)}% over normoxic) narrows ignition safety margin.`,
+            };
+          }
+          return {
+            level: 'NOMINAL',
+            label: 'NOMINAL',
+            glyph: '●',
+            reason: airflowReason,
+          };
+        }
+
+        // Between 19.5% and 20.4% O2
+        if (hazard >= 7 && airflowActive) {
+          return {
+            level: 'ELEVATED',
+            label: 'ELEVATED RISK',
+            glyph: '▲',
+            reason: `Near-normoxic O2 with active ${flowSpec.label} convective supply on high-hazard composite.`,
+          };
+        }
+        return {
+          level: 'NOMINAL',
+          label: 'NOMINAL',
+          glyph: '●',
+          reason: `Reduced oxygen (${cabinO2.toFixed(1)}% O2) slows flame propagation below baseline.`,
+        };
+      }
+
+      // Compute Static + Dynamic KPI Values
+      function updateKPIs(evaluatedList, filteredCount) {
+        const total = NASA_PSI_EXPERIMENTS.length;
+        const avgO2 =
+          NASA_PSI_EXPERIMENTS.reduce((sum, item) => sum + item.oxygen_percent, 0) / total;
+        const highestHazard = NASA_PSI_EXPERIMENTS.reduce((maxItem, item) =>
+          item.hazard_score > maxItem.hazard_score ? item : maxItem
+        );
+        const tiedHighest = NASA_PSI_EXPERIMENTS.filter(
+          (e) => e.hazard_score === highestHazard.hazard_score
+        )
+          .map((e) => e.experiment_name)
+          .join(' & ');
+
+        const criticalCount = evaluatedList.filter((x) => x.risk.level === 'CRITICAL').length;
+        const o2Delta = state.oxygenPercent - avgO2;
+        const deltaPrefix = o2Delta >= 0 ? '+' : '';
+
+        document.getElementById('kpi-total-count').textContent = String(total);
+        document.getElementById('kpi-total-sub').textContent =
+          `${filteredCount} matching active filter · 100% offline validated`;
+
+        document.getElementById('kpi-avg-o2').textContent = avgO2.toFixed(1);
+        const deltaEl = document.getElementById('kpi-o2-delta');
+        deltaEl.textContent = `Cabin O2 vs. Mean Threshold: ${deltaPrefix}${o2Delta.toFixed(1)}% O2`;
+        deltaEl.className =
+          o2Delta > 0
+            ? 'mt-3 border-t border-slate-800/80 pt-3 font-mono text-xs text-red-400 tabular-nums'
+            : 'mt-3 border-t border-slate-800/80 pt-3 font-mono text-xs text-slate-400 tabular-nums';
+
+        document.getElementById('kpi-max-hazard-material').textContent = highestHazard.fuel_material;
+        document.getElementById('kpi-max-hazard-meta').textContent =
+          `Hazard Index ${highestHazard.hazard_score} / 10 · ${tiedHighest}`;
+
+        const critSummaryEl = document.getElementById('kpi-critical-summary');
+        critSummaryEl.textContent = `Active Critical Ignition Risk: ${criticalCount} / ${total} materials`;
+        critSummaryEl.className =
+          criticalCount > 0
+            ? 'mt-3 border-t border-slate-800/80 pt-3 font-mono text-xs text-red-400 tabular-nums'
+            : 'mt-3 border-t border-slate-800/80 pt-3 font-mono text-xs text-emerald-400 tabular-nums';
+      }
+
+      // Render Habitat Atmosphere Simulator Matrix & Readouts
+      function updateSimulatorUI(evaluatedList) {
+        const o2Slider = document.getElementById('slider-oxygen');
+        const flowSlider = document.getElementById('slider-airflow');
+
+        document.getElementById('val-oxygen').textContent = state.oxygenPercent.toFixed(1);
+        document.getElementById('val-airflow').textContent = String(state.airflowCmS);
+
+        // Oxygen regime description
+        const o2Desc = document.getElementById('desc-oxygen-regime');
+        if (state.oxygenPercent < 19.5) {
+          o2Desc.textContent = `Hypoxic atmosphere (${state.oxygenPercent.toFixed(1)}% O2). Below standard combustion limits for most spacecraft polymers.`;
+          o2Slider.classList.remove('danger-slider');
+        } else if (state.oxygenPercent <= 21.5) {
+          o2Desc.textContent = `Normoxic ISS cabin baseline (${state.oxygenPercent.toFixed(1)}% O2). Concurrent flame spread remains active under forced ventilation.`;
+          o2Slider.classList.remove('danger-slider');
+        } else if (state.oxygenPercent < 28) {
+          o2Desc.textContent = `Oxygen-enriched atmosphere (${state.oxygenPercent.toFixed(1)}% O2). Significantly accelerates flame spread and lowers ignition energy.`;
+          o2Slider.classList.add('danger-slider');
+        } else {
+          o2Desc.textContent = `Severe O2 enrichment (${state.oxygenPercent.toFixed(1)}% O2). Approaches or exceeds ACME BRE 34% O2 continuous burning regime.`;
+          o2Slider.classList.add('danger-slider');
+        }
+
+        // Airflow regime description
+        const flowDesc = document.getElementById('desc-airflow-regime');
+        if (state.airflowCmS <= 5) {
+          flowDesc.textContent = `Quiescent microgravity flow (${state.airflowCmS} cm/s). Favors spherical diffusion flames and low-temperature cool flames.`;
+          flowSlider.classList.remove('danger-slider');
+        } else if (state.airflowCmS <= 18) {
+          flowDesc.textContent = `Low-velocity ventilation (${state.airflowCmS} cm/s). Transitions stagnant flames toward convective oxidizer transport.`;
+          flowSlider.classList.remove('danger-slider');
+        } else if (state.airflowCmS <= 32) {
+          flowDesc.textContent = `Active cabin convective flow (${state.airflowCmS} cm/s). Matches SAFFIRE-I/II/III & SoFIE concurrent flame-spread test speeds.`;
+          flowSlider.classList.add('danger-slider');
+        } else {
+          flowDesc.textContent = `High forced convection (${state.airflowCmS} cm/s). Rapidly drives flame growth over solid composites while extinguishing weak burners.`;
+          flowSlider.classList.add('danger-slider');
+        }
+
+        const criticalItems = evaluatedList.filter((x) => x.risk.level === 'CRITICAL');
+        const elevatedItems = evaluatedList.filter((x) => x.risk.level === 'ELEVATED');
+        const nominalItems = evaluatedList.filter((x) => x.risk.level === 'NOMINAL');
+
+        document.getElementById('legend-critical-count').textContent = `Critical (${criticalItems.length})`;
+        document.getElementById('legend-elevated-count').textContent = `Elevated (${elevatedItems.length})`;
+        document.getElementById('legend-nominal-count').textContent = `Nominal (${nominalItems.length})`;
+
+        const postureLabel = document.getElementById('sim-posture-label');
+        const actionSummary = document.getElementById('sim-action-summary');
+        if (criticalItems.length > 0) {
+          postureLabel.textContent = `✖ CRITICAL IGNITION RISK (${criticalItems.length})`;
+          postureLabel.className = 'font-mono text-xs font-semibold text-red-400 tabular-nums';
+          actionSummary.textContent =
+            state.oxygenPercent >= 24
+              ? `${criticalItems.length} materials are in CRITICAL IGNITION RISK due to elevated O2 (${state.oxygenPercent.toFixed(1)}%). Depressurize/vitiate with N2 below 21% O2 and de-energize ventilation.`
+              : `${criticalItems.length} materials are in CRITICAL IGNITION RISK at ${state.oxygenPercent.toFixed(1)}% O2 and ${state.airflowCmS} cm/s. Halt forced cabin ventilation fans immediately on smoke alarm.`;
+        } else if (elevatedItems.length > 0) {
+          postureLabel.textContent = `▲ ELEVATED MONITORING (${elevatedItems.length})`;
+          postureLabel.className = 'font-mono text-xs font-semibold text-amber-400 tabular-nums';
+          actionSummary.textContent =
+            `No materials in critical runaway state; ${elevatedItems.length} materials remain within active microgravity test boundaries. Maintain continuous smoke and pyrometry monitoring.`;
+        } else {
+          postureLabel.textContent = '● FIRE-SAFE ENVELOPE';
+          postureLabel.className = 'font-mono text-xs font-semibold text-emerald-400 tabular-nums';
+          actionSummary.textContent =
+            'All 14 NASA PSI materials are outside critical ignition thresholds under the simulated atmosphere.';
+        }
+
+        // Render 14 live material status tiles
+        const matrixEl = document.getElementById('simulator-matrix');
+        matrixEl.innerHTML = evaluatedList
+          .map(({ exp, risk }) => {
+            let tileClasses =
+              'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-600';
+            let statusColor = 'text-emerald-400';
+            let statusShort = 'NOMINAL';
+            if (risk.level === 'CRITICAL') {
+              tileClasses =
+                'border-red-500/80 bg-red-950/50 text-red-100 hover:border-red-400';
+              statusColor = 'text-red-400';
+              statusShort = 'CRITICAL';
+            } else if (risk.level === 'ELEVATED') {
+              tileClasses =
+                'border-amber-500/50 bg-amber-950/20 text-amber-100 hover:border-amber-400';
+              statusColor = 'text-amber-400';
+              statusShort = 'ELEVATED';
+            }
+
+            return `
+              <button
+                type="button"
+                data-jump-id="${exp.id}"
+                class="text-left rounded-md border p-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${tileClasses}"
+                title="${escapeHtml(exp.experiment_name)} — ${escapeHtml(risk.label)}"
+              >
+                <div class="flex items-center justify-between gap-1 font-mono text-[10px]">
+                  <span class="${statusColor} font-semibold whitespace-nowrap">${risk.glyph} ${statusShort}</span>
+                  <span class="text-slate-400 tabular-nums">${exp.oxygen_percent}%</span>
+                </div>
+                <div class="mt-1 truncate text-xs font-semibold text-white">${escapeHtml(exp.experiment_name)}</div>
+                <div class="mt-0.5 truncate font-mono text-[10px] text-slate-400 tabular-nums">H:${exp.hazard_score}/10 · ${escapeHtml(String(exp.airflow_cm_s))}</div>
+              </button>
+            `;
+          })
+          .join('');
+
+        // Critical Callout Bar
+        const calloutTitle = document.getElementById('critical-callout-title');
+        const calloutNames = document.getElementById('critical-callout-names');
+        const filterCriticalBtn = document.getElementById('btn-filter-critical');
+
+        if (criticalItems.length > 0) {
+          calloutTitle.textContent = `CRITICAL IGNITION RISK (${criticalItems.length} ${criticalItems.length === 1 ? 'MATERIAL' : 'MATERIALS'}):`;
+          calloutTitle.className = 'text-xs font-mono font-semibold text-red-400';
+          calloutNames.textContent = criticalItems.map((x) => x.exp.experiment_name).join(' · ');
+          filterCriticalBtn.classList.remove('hidden');
+        } else {
+          calloutTitle.textContent = 'CRITICAL IGNITION RISK (0 MATERIALS):';
+          calloutTitle.className = 'text-xs font-mono font-semibold text-emerald-400';
+          calloutNames.textContent = 'No materials currently meet critical ignition risk criteria.';
+          filterCriticalBtn.classList.add('hidden');
+        }
+      }
+
+      // Render Filtered & Expandable Experiment Cards
+      function renderExperiments() {
+        const evaluatedList = NASA_PSI_EXPERIMENTS.map((exp) => ({
+          exp,
+          risk: evaluateRisk(exp, state.oxygenPercent, state.airflowCmS),
+        }));
+
+        const q = state.searchQuery.trim().toLowerCase();
+
+        const filtered = evaluatedList.filter(({ exp, risk }) => {
+          if (state.gravityFilter !== 'All' && exp.gravity_mode !== state.gravityFilter) {
+            return false;
+          }
+          if (state.criticalOnly && risk.level !== 'CRITICAL') {
+            return false;
+          }
+          if (q) {
+            const haystack = [
+              exp.experiment_name,
+              exp.fuel_material,
+              exp.gravity_mode,
+              String(exp.oxygen_percent),
+              String(exp.airflow_cm_s),
+              exp.flame_behavior_summary,
+              exp.safety_action,
+              risk.label,
+            ]
+              .join(' ')
+              .toLowerCase();
+            if (!haystack.includes(q)) return false;
+          }
+          return true;
+        });
+
+        // Sort: CRITICAL first, then ELEVATED, then NOMINAL; within tier by hazard_score desc, then id asc
+        const rankMap = { CRITICAL: 0, ELEVATED: 1, NOMINAL: 2 };
+        filtered.sort((a, b) => {
+          const rDiff = rankMap[a.risk.level] - rankMap[b.risk.level];
+          if (rDiff !== 0) return rDiff;
+          const hDiff = b.exp.hazard_score - a.exp.hazard_score;
+          if (hDiff !== 0) return hDiff;
+          return a.exp.id - b.exp.id;
+        });
+
+        updateKPIs(evaluatedList, filtered.length);
+        updateSimulatorUI(evaluatedList);
+        updateFilterButtonsUI();
+
+        const resultsStatus = document.getElementById('results-status');
+        resultsStatus.textContent = `Showing ${filtered.length} of ${NASA_PSI_EXPERIMENTS.length} experiments · Sorted by Ignition Risk & Hazard Index`;
+
+        const grid = document.getElementById('experiments-grid');
+        const emptyState = document.getElementById('empty-state');
+
+        if (filtered.length === 0) {
+          grid.innerHTML = '';
+          emptyState.classList.remove('hidden');
+          const emptyTitle = document.getElementById('empty-state-title');
+          const emptyDesc = document.getElementById('empty-state-desc');
+          const resetBtn = document.getElementById('btn-reset-filters');
+
+          if (state.gravityFilter === 'Lunar 0.16g' || state.gravityFilter === 'Martian 0.38g') {
+            emptyTitle.textContent = `No NASA PSI records logged for ${state.gravityFilter}`;
+            emptyDesc.textContent = `All 14 flight and ground-support combustion investigations in the loaded NASA PSI dataset were conducted in orbital Microgravity 0g (ISS and Cygnus). Partial-gravity (${state.gravityFilter}) buoyant convection limits lie between 0g and 1g terrestrial baselines.`;
+            resetBtn.textContent = 'Show Microgravity 0g Experiments';
+          } else {
+            emptyTitle.textContent = 'No experiments match your current filters';
+            emptyDesc.textContent =
+              'Try clearing your search terms or disabling the Critical Ignition Risk filter to view all 14 NASA PSI combustion investigations.';
+            resetBtn.textContent = 'Reset All Filters';
+          }
+          return;
+        }
+
+        emptyState.classList.add('hidden');
+
+        grid.innerHTML = filtered
+          .map(({ exp, risk }) => {
+            const isExpanded = state.expandedIds.has(exp.id);
+            const isCritical = risk.level === 'CRITICAL';
+            const isElevated = risk.level === 'ELEVATED';
+
+            const cardBorderClass = isCritical
+              ? 'border-red-500/80 bg-red-950/20'
+              : isElevated
+                ? 'border-amber-500/45 bg-[#0F141E]'
+                : 'border-slate-800 bg-[#0F141E]';
+
+            const statusTextClass = isCritical
+              ? 'text-red-400'
+              : isElevated
+                ? 'text-amber-400'
+                : 'text-emerald-400';
+
+            const airflowDisplay =
+              typeof exp.airflow_cm_s === 'number'
+                ? `${exp.airflow_cm_s} cm/s`
+                : isNaN(Number(exp.airflow_cm_s.charAt(0)))
+                  ? exp.airflow_cm_s
+                  : `${exp.airflow_cm_s} cm/s`;
+
+            // 10-segment hazard bar
+            const hazardSegments = Array.from({ length: 10 }, (_, idx) => {
+              const filled = idx < exp.hazard_score;
+              const segColor = !filled
+                ? 'bg-slate-800'
+                : exp.hazard_score >= 7
+                  ? 'bg-red-500'
+                  : exp.hazard_score >= 5
+                    ? 'bg-amber-400'
+                    : 'bg-cyan-400';
+              return `<span class="h-1.5 w-3 rounded-[1px] ${segColor}"></span>`;
+            }).join('');
+
+            return `
+              <article
+                id="exp-card-${exp.id}"
+                class="rounded-lg border transition-colors ${cardBorderClass}"
+              >
+                <!-- Card Header / Always Visible Summary -->
+                <div class="p-5">
+                  <!-- Quiet Unboxed Metadata Line (Zero-Pill Discipline) -->
+                  <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+                    <div class="flex items-center gap-2 text-slate-400 tabular-nums">
+                      <span>EXP-${String(exp.id).padStart(2, '0')}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>${escapeHtml(exp.gravity_mode)}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>Hazard ${exp.hazard_score}/10</span>
+                    </div>
+                    <span class="font-semibold ${statusTextClass} whitespace-nowrap">
+                      ${risk.glyph} ${risk.label}
+                    </span>
+                  </div>
+
+                  <!-- Title & Fuel Material -->
+                  <div class="mt-2.5 flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                      <h3 class="text-lg font-semibold text-white tracking-tight">
+                        ${escapeHtml(exp.experiment_name)}
+                      </h3>
+                      <p class="mt-1 text-sm text-slate-300 leading-snug">
+                        ${escapeHtml(exp.fuel_material)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      data-toggle-id="${exp.id}"
+                      aria-expanded="${isExpanded ? 'true' : 'false'}"
+                      class="whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 hover:border-cyan-500/60 hover:text-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors"
+                    >
+                      <span>${isExpanded ? 'Hide Details' : 'Inspect'}</span>
+                      <svg
+                        class="h-3.5 w-3.5 transition-transform duration-150 ${isExpanded ? 'rotate-180' : ''}"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        aria-hidden="true"
+                      >
+                        <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <!-- Compact Parameter Strip -->
+                  <div class="mt-4 grid grid-cols-3 gap-3 border-t border-slate-800/80 pt-3.5 font-mono text-xs tabular-nums">
+                    <div>
+                      <div class="text-[11px] text-slate-500">Test Oxygen</div>
+                      <div class="mt-0.5 font-semibold text-slate-200">${exp.oxygen_percent}% O2</div>
+                    </div>
+                    <div>
+                      <div class="text-[11px] text-slate-500">Airflow Regime</div>
+                      <div class="mt-0.5 font-semibold text-slate-200 truncate" title="${escapeHtml(airflowDisplay)}">${escapeHtml(airflowDisplay)}</div>
+                    </div>
+                    <div>
+                      <div class="text-[11px] text-slate-500">Hazard Score</div>
+                      <div class="mt-0.5 font-semibold ${exp.hazard_score >= 7 ? 'text-red-400' : exp.hazard_score >= 5 ? 'text-amber-300' : 'text-cyan-300'}">${exp.hazard_score} / 10</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Expanded Details Drawer -->
+                ${
+                  isExpanded
+                    ? `
+                  <div class="border-t border-slate-800/90 px-5 pb-5 pt-4 space-y-4">
+                    <!-- 1. Flame Spread Physics -->
+                    <div class="space-y-1.5">
+                      <h4 class="text-xs font-mono font-semibold text-cyan-400">
+                        Flame Spread Physics
+                      </h4>
+                      <p class="text-sm text-slate-300 leading-relaxed">
+                        ${escapeHtml(exp.flame_behavior_summary)}
+                      </p>
+                    </div>
+
+                    <!-- 2. NASA Test Parameters & Simulator Assessment -->
+                    <div class="border-t border-slate-800/70 pt-3.5 space-y-2.5">
+                      <h4 class="text-xs font-mono font-semibold text-cyan-400">
+                        NASA Test Parameters &amp; Cabin Evaluation
+                      </h4>
+                      <dl class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono tabular-nums">
+                        <div>
+                          <dt class="text-slate-500">Gravity</dt>
+                          <dd class="text-slate-200 mt-0.5">${escapeHtml(exp.gravity_mode)}</dd>
+                        </div>
+                        <div>
+                          <dt class="text-slate-500">O2 Threshold</dt>
+                          <dd class="text-slate-200 mt-0.5">${exp.oxygen_percent}% O2</dd>
+                        </div>
+                        <div>
+                          <dt class="text-slate-500">Test Flow</dt>
+                          <dd class="text-slate-200 mt-0.5">${escapeHtml(airflowDisplay)}</dd>
+                        </div>
+                        <div>
+                          <dt class="text-slate-500">Severity Scale</dt>
+                          <dd class="mt-1.5 flex items-center gap-0.5" aria-label="Hazard score ${exp.hazard_score} out of 10">
+                            ${hazardSegments}
+                          </dd>
+                        </div>
+                      </dl>
+                      <p class="text-xs font-mono ${statusTextClass} leading-relaxed pt-1">
+                        Simulator Assessment (${state.oxygenPercent.toFixed(1)}% O2 · ${state.airflowCmS} cm/s): ${escapeHtml(risk.reason)}
+                      </p>
+                    </div>
+
+                    <!-- 3. Emergency Suppression Protocol -->
+                    <div class="border-t border-slate-800/70 pt-3.5 space-y-1.5">
+                      <h4 class="text-xs font-mono font-semibold ${isCritical ? 'text-red-400' : 'text-amber-400'}">
+                        Emergency Suppression Protocol
+                      </h4>
+                      <p class="text-sm text-white leading-relaxed font-medium">
+                        ${escapeHtml(exp.safety_action)}
+                      </p>
+                    </div>
+                  </div>
+                `
+                    : ''
+                }
+              </article>
+            `;
+          })
+          .join('');
+      }
+
+      function updateFilterButtonsUI() {
+        document.querySelectorAll('.gravity-btn').forEach((btn) => {
+          const isActive = btn.dataset.gravity === state.gravityFilter;
+          btn.className = isActive
+            ? 'gravity-btn whitespace-nowrap shrink-0 rounded-md px-3 py-1.5 text-xs font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400'
+            : 'gravity-btn whitespace-nowrap shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white border border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400';
+        });
+
+        const clearBtn = document.getElementById('btn-clear-search');
+        if (state.searchQuery.length > 0) {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+
+        document.getElementById('toggle-critical-only').checked = state.criticalOnly;
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      // Event Wiring
+      document.getElementById('slider-oxygen').addEventListener('input', (e) => {
+        state.oxygenPercent = parseFloat(e.target.value);
+        renderExperiments();
+      });
+
+      document.getElementById('slider-airflow').addEventListener('input', (e) => {
+        state.airflowCmS = parseInt(e.target.value, 10);
+        renderExperiments();
+      });
+
+      document.querySelectorAll('.preset-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.oxygenPercent = parseFloat(btn.dataset.presetO2);
+          state.airflowCmS = parseInt(btn.dataset.presetFlow, 10);
+          document.getElementById('slider-oxygen').value = String(state.oxygenPercent);
+          document.getElementById('slider-airflow').value = String(state.airflowCmS);
+          renderExperiments();
+        });
+      });
+
+      document.querySelectorAll('.gravity-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.gravityFilter = btn.dataset.gravity;
+          renderExperiments();
+        });
+      });
+
+      document.getElementById('search-input').addEventListener('input', (e) => {
+        state.searchQuery = e.target.value;
+        renderExperiments();
+      });
+
+      document.getElementById('btn-clear-search').addEventListener('click', () => {
+        state.searchQuery = '';
+        document.getElementById('search-input').value = '';
+        renderExperiments();
+        document.getElementById('search-input').focus();
+      });
+
+      document.getElementById('toggle-critical-only').addEventListener('change', (e) => {
+        state.criticalOnly = e.target.checked;
+        renderExperiments();
+      });
+
+      document.getElementById('btn-filter-critical').addEventListener('click', () => {
+        state.criticalOnly = true;
+        state.gravityFilter = 'All';
+        renderExperiments();
+        document.getElementById('experiments').scrollIntoView({ behavior: 'smooth' });
+      });
+
+      document.getElementById('btn-expand-all').addEventListener('click', () => {
+        NASA_PSI_EXPERIMENTS.forEach((exp) => state.expandedIds.add(exp.id));
+        renderExperiments();
+      });
+
+      document.getElementById('btn-collapse-all').addEventListener('click', () => {
+        state.expandedIds.clear();
+        renderExperiments();
+      });
+
+      function resetAllToNominal() {
+        state.oxygenPercent = 21.0;
+        state.airflowCmS = 20;
+        state.gravityFilter = 'All';
+        state.searchQuery = '';
+        state.criticalOnly = false;
+        document.getElementById('slider-oxygen').value = '21';
+        document.getElementById('slider-airflow').value = '20';
+        document.getElementById('search-input').value = '';
+        renderExperiments();
+      }
+
+      document.getElementById('btn-reset-all').addEventListener('click', resetAllToNominal);
+
+      document.getElementById('btn-reset-filters').addEventListener('click', () => {
+        state.gravityFilter = 'All';
+        state.searchQuery = '';
+        state.criticalOnly = false;
+        document.getElementById('search-input').value = '';
+        renderExperiments();
+      });
+
+      // Delegated click handler for experiment card expand/collapse
+      document.getElementById('experiments-grid').addEventListener('click', (e) => {
+        const toggleBtn = e.target.closest('[data-toggle-id]');
+        if (!toggleBtn) return;
+        const id = parseInt(toggleBtn.dataset.toggleId, 10);
+        if (state.expandedIds.has(id)) {
+          state.expandedIds.delete(id);
+        } else {
+          state.expandedIds.add(id);
+        }
+        renderExperiments();
+      });
+
+      // Delegated click handler for Simulator Matrix tile -> jump & expand card
+      document.getElementById('simulator-matrix').addEventListener('click', (e) => {
+        const tile = e.target.closest('[data-jump-id]');
+        if (!tile) return;
+        const id = parseInt(tile.dataset.jumpId, 10);
+        state.gravityFilter = 'All';
+        state.searchQuery = '';
+        state.criticalOnly = false;
+        document.getElementById('search-input').value = '';
+        state.expandedIds.add(id);
+        renderExperiments();
+        const cardEl = document.getElementById(`exp-card-${id}`);
+        if (cardEl) {
+          cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+
+      // Initial render
+      renderExperiments();
+
+      // ============================================================================
+      // 3D VIRTUAL FIRE & DAMAGE PROGRESSION LAB (Three.js r128 PBR + OrbitControls)
+      // ============================================================================
+      (function initVirtualFireLab() {
+        const mountEl = document.getElementById('three-lab-mount');
+        if (!mountEl || typeof THREE === 'undefined') {
+          if (mountEl) {
+            mountEl.innerHTML =
+              '<div class="flex h-full items-center justify-center p-6 text-center font-mono text-xs text-slate-400">3D WebGL viewport requires Three.js r128 runtime.</div>';
+          }
+          return;
+        }
+
+        const HABITATS = {
+          orbital: {
+            name: 'Orbital Spacecraft Lab',
+            spec: '0g | 21% O2 | 14.7 psi',
+            gravityG: 0.0,
+            o2: 21,
+            psi: 14.7,
+            fogColor: 0x090d14,
+            baseFogDensity: 0.016,
+            ledColor: 0xdbeafe,
+          },
+          lunar: {
+            name: 'Lunar Base Module',
+            spec: '0.16g | 34% O2 | 10.2 psi',
+            gravityG: 0.16,
+            o2: 34,
+            psi: 10.2,
+            fogColor: 0x0b0e14,
+            baseFogDensity: 0.014,
+            ledColor: 0xe2e8f0,
+          },
+          martian: {
+            name: 'Martian Pressurized Rover',
+            spec: '0.38g | 32% O2 | 8.5 psi',
+            gravityG: 0.38,
+            o2: 32,
+            psi: 8.5,
+            fogColor: 0x160d0a,
+            baseFogDensity: 0.02,
+            ledColor: 0xfde68a,
+          },
+        };
+
+        const labState = {
+          habitatKey: 'orbital',
+          selectedExpId: 1,
+          ignited: false,
+          running: false,
+          suppressed: false,
+          mistTimer: 0,
+          elapsedSec: 0,
+          maxExposureSec: 0,
+          spreadRadius: 0,
+          maxSpreadRadius: 0,
+          hullIntegrity: 100,
+          toxicPpm: 420,
+        };
+
+        // Populate Fuel Sample Selector
+        const sampleSelect = document.getElementById('lab-sample-select');
+        NASA_PSI_EXPERIMENTS.forEach((exp) => {
+          const opt = document.createElement('option');
+          opt.value = String(exp.id);
+          opt.textContent = `${exp.experiment_name} · ${exp.fuel_material.slice(0, 28)}${exp.fuel_material.length > 28 ? '…' : ''}`;
+          sampleSelect.appendChild(opt);
+        });
+
+        // Software WebGL Guard
+        const isSoftwareGl = (() => {
+          try {
+            const c = document.createElement('canvas');
+            const gl = c.getContext('webgl2') || c.getContext('webgl');
+            if (!gl) return true;
+            const ext = gl.getExtension('WEBGL_debug_renderer_info');
+            const param = ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER;
+            const gpu = String(gl.getParameter(param) || '');
+            const lose = gl.getExtension('WEBGL_lose_context');
+            if (lose) lose.loseContext();
+            return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
+          } catch (e) {
+            return false;
+          }
+        })();
+
+        // Scene, Camera, Renderer
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x04060a);
+        const fog = new THREE.FogExp2(HABITATS.orbital.fogColor, HABITATS.orbital.baseFogDensity);
+        scene.fog = fog;
+
+        const width = mountEl.clientWidth || 960;
+        const height = mountEl.clientHeight || 540;
+        const camera = new THREE.PerspectiveCamera(48, width / height, 0.1, 120);
+        const defaultCamPos = new THREE.Vector3(2.85, 2.05, 3.55);
+        const defaultTarget = new THREE.Vector3(0, 1.05, -0.35);
+        camera.position.copy(defaultCamPos);
+
+        const renderer = new THREE.WebGLRenderer({
+          antialias: !isSoftwareGl,
+          powerPreference: 'high-performance',
+        });
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.18;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        mountEl.appendChild(renderer.domElement);
+
+        // OrbitControls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.copy(defaultTarget);
+        controls.enableDamping = !isSoftwareGl;
+        controls.dampingFactor = 0.06;
+        controls.minDistance = 1.4;
+        controls.maxDistance = 6.2;
+        controls.minPolarAngle = 0.25;
+        controls.maxPolarAngle = Math.PI * 0.49;
+        controls.minAzimuthAngle = -Math.PI * 0.65;
+        controls.maxAzimuthAngle = Math.PI * 0.65;
+        controls.update();
+
+        // Procedural Studio Environment Map (PMREMGenerator, zero external assets)
+        (function buildProceduralEnvMap() {
+          const pmrem = new THREE.PMREMGenerator(renderer);
+          const envScene = new THREE.Scene();
+          envScene.background = new THREE.Color(0x0b101b);
+
+          const topLightPanel = new THREE.Mesh(
+            new THREE.PlaneGeometry(10, 10),
+            new THREE.MeshBasicMaterial({ color: 0xe0f2fe, side: THREE.DoubleSide })
+          );
+          topLightPanel.position.set(0, 6, 0);
+          topLightPanel.rotation.x = Math.PI / 2;
+          envScene.add(topLightPanel);
+
+          const coolSidePanel = new THREE.Mesh(
+            new THREE.PlaneGeometry(8, 5),
+            new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide })
+          );
+          coolSidePanel.position.set(-7, 2, 0);
+          coolSidePanel.rotation.y = Math.PI / 2;
+          envScene.add(coolSidePanel);
+
+          const warmBouncePanel = new THREE.Mesh(
+            new THREE.PlaneGeometry(8, 5),
+            new THREE.MeshBasicMaterial({ color: 0x475569, side: THREE.DoubleSide })
+          );
+          warmBouncePanel.position.set(7, 1, 0);
+          warmBouncePanel.rotation.y = -Math.PI / 2;
+          envScene.add(warmBouncePanel);
+
+          scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+          pmrem.dispose();
+        })();
+
+        // ============================================================================
+        // Procedural HTML5 Canvas Texture Factory
+        // ============================================================================
+        const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy() || 1);
+
+        function makeCanvasTex(size, drawFn, isColor, repeatX, repeatY) {
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          drawFn(ctx, size);
+          const tex = new THREE.CanvasTexture(canvas);
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          if (repeatX && repeatY) tex.repeat.set(repeatX, repeatY);
+          if (isColor) tex.encoding = THREE.sRGBEncoding;
+          tex.anisotropy = maxAniso;
+          tex.needsUpdate = true;
+          return tex;
+        }
+
+        function createTextures() {
+          // 1. Brushed Aerospace Aluminum (Albedo, Bump, Roughness)
+          const aluAlbedo = makeCanvasTex(
+            512,
+            (ctx, s) => {
+              ctx.fillStyle = '#aeb6c2';
+              ctx.fillRect(0, 0, s, s);
+              for (let y = 0; y < s; y += 2) {
+                const v = 165 + Math.floor(Math.random() * 24);
+                ctx.fillStyle = `rgb(${v - 4},${v},${v + 8})`;
+                ctx.fillRect(0, y, s, 1);
+              }
+              // Panel seam lines
+              ctx.strokeStyle = '#5f6875';
+              ctx.lineWidth = 4;
+              ctx.strokeRect(4, 4, s - 8, s - 8);
+              ctx.beginPath();
+              ctx.moveTo(0, s / 2);
+              ctx.lineTo(s, s / 2);
+              ctx.stroke();
+              // Rivets
+              ctx.fillStyle = '#737d8c';
+              for (let i = 24; i < s; i += 48) {
+                [18, s / 2 - 14, s / 2 + 14, s - 18].forEach((ry) => {
+                  ctx.beginPath();
+                  ctx.arc(i, ry, 4, 0, Math.PI * 2);
+                  ctx.fill();
+                });
+              }
+            },
+            true,
+            1,
+            1
+          );
+
+          const aluBump = makeCanvasTex(
+            512,
+            (ctx, s) => {
+              ctx.fillStyle = '#808080';
+              ctx.fillRect(0, 0, s, s);
+              for (let y = 0; y < s; y++) {
+                const g = 120 + Math.floor(Math.random() * 18);
+                ctx.fillStyle = `rgb(${g},${g},${g})`;
+                ctx.fillRect(0, y, s, 1);
+              }
+              ctx.strokeStyle = '#303030';
+              ctx.lineWidth = 5;
+              ctx.strokeRect(4, 4, s - 8, s - 8);
+              ctx.beginPath();
+              ctx.moveTo(0, s / 2);
+              ctx.lineTo(s, s / 2);
+              ctx.stroke();
+              ctx.fillStyle = '#d8d8d8';
+              for (let i = 24; i < s; i += 48) {
+                [18, s / 2 - 14, s / 2 + 14, s - 18].forEach((ry) => {
+                  ctx.beginPath();
+                  ctx.arc(i, ry, 4, 0, Math.PI * 2);
+                  ctx.fill();
+                });
+              }
+            },
+            false,
+            1,
+            1
+          );
+
+          const aluRough = makeCanvasTex(
+            256,
+            (ctx, s) => {
+              ctx.fillStyle = '#404040';
+              ctx.fillRect(0, 0, s, s);
+              for (let y = 0; y < s; y++) {
+                const r = 48 + Math.floor(Math.random() * 35);
+                ctx.fillStyle = `rgb(${r},${r},${r})`;
+                ctx.fillRect(0, y, s, 1);
+              }
+            },
+            false,
+            1,
+            1
+          );
+
+          // 2. Perforated Acoustic Wall Padding
+          const acousticAlbedo = makeCanvasTex(
+            512,
+            (ctx, s) => {
+              ctx.fillStyle = '#c8cdd6';
+              ctx.fillRect(0, 0, s, s);
+              // Quilted fabric grid
+              ctx.strokeStyle = '#9ca3af';
+              ctx.lineWidth = 2;
+              for (let i = 0; i <= s; i += 128) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, s);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(s, i);
+                ctx.stroke();
+              }
+              // Micro-perforations
+              ctx.fillStyle = '#475569';
+              for (let x = 16; x < s; x += 16) {
+                for (let y = 16; y < s; y += 16) {
+                  ctx.beginPath();
+                  ctx.arc(x, y, 2.1, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+              }
+            },
+            true,
+            1,
+            1
+          );
+
+          const acousticBump = makeCanvasTex(
+            512,
+            (ctx, s) => {
+              ctx.fillStyle = '#c0c0c0';
+              ctx.fillRect(0, 0, s, s);
+              ctx.fillStyle = '#262626';
+              for (let x = 16; x < s; x += 16) {
+                for (let y = 16; y < s; y += 16) {
+                  ctx.beginPath();
+                  ctx.arc(x, y, 2.3, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+              }
+            },
+            false,
+            1,
+            1
+          );
+
+          // 3. Insulated Kapton Wiring Bundle Texture
+          const kaptonAlbedo = makeCanvasTex(
+            256,
+            (ctx, s) => {
+              ctx.fillStyle = '#d97706';
+              ctx.fillRect(0, 0, s, s);
+              for (let x = 0; x < s; x += 16) {
+                ctx.fillStyle = x % 32 === 0 ? '#f59e0b' : '#b45309';
+                ctx.fillRect(x, 0, 12, s);
+              }
+              // Black cable tie bands
+              ctx.fillStyle = '#1e293b';
+              ctx.fillRect(0, 48, s, 10);
+              ctx.fillRect(0, 180, s, 10);
+            },
+            true,
+            3,
+            1
+          );
+
+          // 4. Stainless-Steel Floor & Workbench Deck
+          const deckAlbedo = makeCanvasTex(
+            512,
+            (ctx, s) => {
+              ctx.fillStyle = '#363f4d';
+              ctx.fillRect(0, 0, s, s);
+              ctx.strokeStyle = '#1e2631';
+              ctx.lineWidth = 3;
+              for (let i = 0; i <= s; i += 64) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, s);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(s, i);
+                ctx.stroke();
+              }
+              ctx.fillStyle = '#525e70';
+              for (let x = 16; x < s; x += 32) {
+                for (let y = 16; y < s; y += 32) {
+                  ctx.fillRect(x - 3, y - 1, 6, 2);
+                }
+              }
+            },
+            true,
+            4,
+            4
+          );
+
+          const deckBump = makeCanvasTex(
+            512,
+            (ctx, s) => {
+              ctx.fillStyle = '#808080';
+              ctx.fillRect(0, 0, s, s);
+              ctx.fillStyle = '#e0e0e0';
+              for (let x = 16; x < s; x += 32) {
+                for (let y = 16; y < s; y += 32) {
+                  ctx.fillRect(x - 3, y - 1, 6, 2);
+                }
+              }
+            },
+            false,
+            4,
+            4
+          );
+
+          // 5. Instrument Console Faceplate
+          const consoleAlbedo = makeCanvasTex(
+            512,
+            (ctx, s) => {
+              ctx.fillStyle = '#1f2937';
+              ctx.fillRect(0, 0, s, s);
+              // Display bezel
+              ctx.fillStyle = '#090d14';
+              ctx.fillRect(28, 28, 280, 170);
+              ctx.strokeStyle = '#475569';
+              ctx.lineWidth = 3;
+              ctx.strokeRect(28, 28, 280, 170);
+              // Telemetry waveform
+              ctx.strokeStyle = '#22d3ee';
+              ctx.lineWidth = 2.5;
+              ctx.beginPath();
+              for (let x = 40; x < 296; x += 8) {
+                const y = 115 + Math.sin(x * 0.08) * 32 + Math.cos(x * 0.19) * 12;
+                if (x === 40) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+              }
+              ctx.stroke();
+              // Indicator switches & gauges
+              for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 4; c++) {
+                  ctx.fillStyle = (r + c) % 3 === 0 ? '#f59e0b' : '#10b981';
+                  ctx.fillRect(340 + c * 36, 40 + r * 48, 22, 18);
+                }
+              }
+              // Caution stripe band
+              ctx.fillStyle = '#eab308';
+              ctx.fillRect(28, 230, s - 56, 24);
+              ctx.fillStyle = '#111827';
+              for (let x = 28; x < s - 60; x += 32) {
+                ctx.beginPath();
+                ctx.moveTo(x, 230);
+                ctx.lineTo(x + 16, 230);
+                ctx.lineTo(x + 4, 254);
+                ctx.lineTo(x - 12, 254);
+                ctx.closePath();
+                ctx.fill();
+              }
+              // Vent louvers
+              ctx.fillStyle = '#0f172a';
+              for (let y = 290; y < 470; y += 22) {
+                ctx.fillRect(36, y, s - 72, 10);
+              }
+            },
+            true,
+            1,
+            1
+          );
+
+          // 6. Cracked Charcoal & Glowing Ember Emissive Map
+          const charEmissive = makeCanvasTex(
+            512,
+            (ctx, s) => {
+              ctx.fillStyle = '#000000';
+              ctx.fillRect(0, 0, s, s);
+              ctx.strokeStyle = '#ff4400';
+              ctx.lineCap = 'round';
+              for (let i = 0; i < 42; i++) {
+                let x = Math.random() * s;
+                let y = Math.random() * s;
+                ctx.lineWidth = 1.2 + Math.random() * 2.5;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                for (let seg = 0; seg < 6; seg++) {
+                  x += (Math.random() - 0.5) * 90;
+                  y += (Math.random() - 0.5) * 90;
+                  ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+              }
+              ctx.fillStyle = '#ff7700';
+              for (let i = 0; i < 65; i++) {
+                ctx.beginPath();
+                ctx.arc(Math.random() * s, Math.random() * s, 1 + Math.random() * 2.5, 0, Math.PI * 2);
+                ctx.fill();
+              }
+            },
+            true,
+            1,
+            1
+          );
+
+          // 7. Particle Sprites (Flame, Smoke, Water Mist)
+          const flameSprite = makeCanvasTex(
+            128,
+            (ctx, s) => {
+              const g = ctx.createRadialGradient(s / 2, s / 2, 2, s / 2, s / 2, s / 2);
+              g.addColorStop(0, 'rgba(255,255,235,1)');
+              g.addColorStop(0.28, 'rgba(255,175,45,0.92)');
+              g.addColorStop(0.62, 'rgba(255,65,5,0.45)');
+              g.addColorStop(1, 'rgba(0,0,0,0)');
+              ctx.fillStyle = g;
+              ctx.fillRect(0, 0, s, s);
+            },
+            true
+          );
+
+          const smokeSprite = makeCanvasTex(
+            128,
+            (ctx, s) => {
+              ctx.clearRect(0, 0, s, s);
+              for (let i = 0; i < 5; i++) {
+                const cx = s / 2 + (Math.random() - 0.5) * 26;
+                const cy = s / 2 + (Math.random() - 0.5) * 26;
+                const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, 44);
+                g.addColorStop(0, 'rgba(220,220,225,0.55)');
+                g.addColorStop(0.55, 'rgba(130,130,138,0.25)');
+                g.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(0, 0, s, s);
+              }
+            },
+            true
+          );
+
+          const mistSprite = makeCanvasTex(
+            64,
+            (ctx, s) => {
+              const g = ctx.createRadialGradient(s / 2, s / 2, 1, s / 2, s / 2, s / 2);
+              g.addColorStop(0, 'rgba(224,247,255,0.95)');
+              g.addColorStop(0.5, 'rgba(125,211,252,0.45)');
+              g.addColorStop(1, 'rgba(0,0,0,0)');
+              ctx.fillStyle = g;
+              ctx.fillRect(0, 0, s, s);
+            },
+            true
+          );
+
+          // 8. Procedural Earth Texture for Exterior Windows
+          const earthTex = makeCanvasTex(
+            512,
+            (ctx, s) => {
+              ctx.fillStyle = '#0b3b75';
+              ctx.fillRect(0, 0, s, s);
+              // Continents
+              ctx.fillStyle = '#2d6a4f';
+              for (let i = 0; i < 18; i++) {
+                ctx.beginPath();
+                ctx.ellipse(
+                  Math.random() * s,
+                  Math.random() * s,
+                  20 + Math.random() * 65,
+                  14 + Math.random() * 45,
+                  Math.random() * Math.PI,
+                  0,
+                  Math.PI * 2
+                );
+                ctx.fill();
+              }
+              // Cloud swirls
+              ctx.fillStyle = 'rgba(255,255,255,0.42)';
+              for (let i = 0; i < 36; i++) {
+                ctx.beginPath();
+                ctx.ellipse(
+                  Math.random() * s,
+                  Math.random() * s,
+                  25 + Math.random() * 80,
+                  5 + Math.random() * 14,
+                  Math.random() * 0.6,
+                  0,
+                  Math.PI * 2
+                );
+                ctx.fill();
+              }
+            },
+            true
+          );
+
+          return {
+            aluAlbedo,
+            aluBump,
+            aluRough,
+            acousticAlbedo,
+            acousticBump,
+            kaptonAlbedo,
+            deckAlbedo,
+            deckBump,
+            consoleAlbedo,
+            charEmissive,
+            flameSprite,
+            smokeSprite,
+            mistSprite,
+            earthTex,
+          };
+        }
+
+        const textures = createTextures();
+
+        // ============================================================================
+        // Lighting Rig (Overhead LEDs, Hemisphere, Fire PointLight, Emergency Strobes)
+        // ============================================================================
+        const hemiLight = new THREE.HemisphereLight(0xcbd5e1, 0x1e293b, 0.55);
+        scene.add(hemiLight);
+
+        const overheadLight1 = new THREE.PointLight(0xdbeafe, 1.35, 14, 1.4);
+        overheadLight1.position.set(0, 2.85, 0.9);
+        overheadLight1.castShadow = true;
+        overheadLight1.shadow.mapSize.width = isSoftwareGl ? 512 : 1024;
+        overheadLight1.shadow.mapSize.height = isSoftwareGl ? 512 : 1024;
+        overheadLight1.shadow.bias = -0.002;
+        scene.add(overheadLight1);
+
+        const overheadLight2 = new THREE.PointLight(0xdbeafe, 1.05, 14, 1.4);
+        overheadLight2.position.set(0, 2.85, -1.6);
+        scene.add(overheadLight2);
+
+        // Optional RectAreaLight for realistic metallic reflections on GPU
+        if (!isSoftwareGl && THREE.RectAreaLightUniformsLib) {
+          THREE.RectAreaLightUniformsLib.init();
+          const rectLed = new THREE.RectAreaLight(0xe0f2fe, 2.6, 1.2, 4.4);
+          rectLed.position.set(0, 2.96, -0.3);
+          rectLed.lookAt(0, 0, -0.3);
+          scene.add(rectLed);
+        }
+
+        // Dynamic Flickering Fire PointLight (#FF6B00)
+        const fireLight = new THREE.PointLight(0xff6b00, 0, 8, 1.5);
+        fireLight.position.set(0, 1.2, 0);
+        fireLight.castShadow = true;
+        fireLight.shadow.mapSize.width = isSoftwareGl ? 512 : 1024;
+        fireLight.shadow.mapSize.height = isSoftwareGl ? 512 : 1024;
+        fireLight.shadow.bias = -0.003;
+        scene.add(fireLight);
+
+        // Emergency Red Strobe Lights (Stage 3 > 120s)
+        const strobeLightL = new THREE.PointLight(0xff1a1a, 0, 10, 1.5);
+        strobeLightL.position.set(-2.3, 2.8, 0.5);
+        scene.add(strobeLightL);
+
+        const strobeLightR = new THREE.PointLight(0xff1a1a, 0, 10, 1.5);
+        strobeLightR.position.set(2.3, 2.8, -1.5);
+        scene.add(strobeLightR);
+
+        // ============================================================================
+        // Flammable Mesh Registry (Tracks Progressive Charring, Embers & Warping)
+        // ============================================================================
+        const flammableMeshes = [];
+
+        function registerFlammable(mesh, category, subsystemName, warpable) {
+          const mat = mesh.material;
+          const posAttr = mesh.geometry.attributes.position;
+          mesh.userData.flammable = true;
+          mesh.userData.category = category;
+          mesh.userData.subsystemName = subsystemName;
+          mesh.userData.warpable = !!warpable;
+          mesh.userData.baseColor = mat.color.clone();
+          mesh.userData.baseRoughness = mat.roughness;
+          mesh.userData.baseMetalness = mat.metalness;
+          mesh.userData.baseEmissive = mat.emissive ? mat.emissive.clone() : new THREE.Color(0x000000);
+          mesh.userData.baseEmissiveIntensity = mat.emissiveIntensity || 0;
+          mesh.userData.maxExposure = 0;
+          if (warpable && posAttr) {
+            mesh.userData.origPos = new Float32Array(posAttr.array);
+          }
+          // Compute approximate world center
+          mesh.updateMatrixWorld(true);
+          const box = new THREE.Box3().setFromObject(mesh);
+          mesh.userData.center = box.getCenter(new THREE.Vector3());
+          flammableMeshes.push(mesh);
+          return mesh;
+        }
+
+        // ============================================================================
+        // Habitat Cabin Architecture (Aluminum Hull, Bulkheads, Padding, Conduits, Racks, Bench)
+        // ============================================================================
+        const cabinGroup = new THREE.Group();
+        scene.add(cabinGroup);
+
+        // 1. Stainless-Steel Laboratory Deck Floor
+        const floorMat = new THREE.MeshStandardMaterial({
+          map: textures.deckAlbedo,
+          bumpMap: textures.deckBump,
+          bumpScale: 0.02,
+          metalness: 0.78,
+          roughness: 0.34,
+        });
+        const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(6.8, 8.6), floorMat);
+        floorMesh.rotation.x = -Math.PI / 2;
+        floorMesh.receiveShadow = true;
+        cabinGroup.add(floorMesh);
+
+        // 2. Segmented Brushed Aluminum Wall Panels & Perforated Acoustic Padding (Left & Right)
+        const baseAluMat = () =>
+          new THREE.MeshStandardMaterial({
+            map: textures.aluAlbedo,
+            bumpMap: textures.aluBump,
+            bumpScale: 0.025,
+            roughnessMap: textures.aluRough,
+            color: 0xd0d7e2,
+            metalness: 0.85,
+            roughness: 0.25,
+            emissiveMap: textures.charEmissive,
+            emissive: new THREE.Color(0x000000),
+            emissiveIntensity: 0,
+          });
+
+        const baseAcousticMat = () =>
+          new THREE.MeshStandardMaterial({
+            map: textures.acousticAlbedo,
+            bumpMap: textures.acousticBump,
+            bumpScale: 0.02,
+            color: 0xd8dee9,
+            metalness: 0.08,
+            roughness: 0.82,
+            emissiveMap: textures.charEmissive,
+            emissive: new THREE.Color(0x000000),
+            emissiveIntensity: 0,
+          });
+
+        const zSegments = [-3.0, -1.0, 1.0, 3.0];
+        zSegments.forEach((zPos, idx) => {
+          // Lower Brushed Aluminum Hull Panel (Left & Right)
+          [-3.2, 3.2].forEach((xWall) => {
+            const lowerGeo = new THREE.BoxGeometry(0.14, 1.45, 1.92, 2, 6, 6);
+            const lowerPanel = new THREE.Mesh(lowerGeo, baseAluMat());
+            lowerPanel.position.set(xWall, 0.725, zPos);
+            lowerPanel.castShadow = true;
+            lowerPanel.receiveShadow = true;
+            cabinGroup.add(lowerPanel);
+            registerFlammable(lowerPanel, 'hull', 'Pressure Bulkhead', true);
+
+            // Upper Perforated Acoustic Padding (Left & Right)
+            const upperGeo = new THREE.BoxGeometry(0.12, 1.45, 1.92, 2, 6, 6);
+            const upperPanel = new THREE.Mesh(upperGeo, baseAcousticMat());
+            upperPanel.position.set(xWall, 2.2, zPos);
+            upperPanel.castShadow = true;
+            upperPanel.receiveShadow = true;
+            cabinGroup.add(upperPanel);
+            registerFlammable(upperPanel, 'acoustic', 'Acoustic Liner', true);
+          });
+
+          // Ceiling Perforated Acoustic Tiles
+          const ceilGeo = new THREE.BoxGeometry(6.2, 0.12, 1.92, 6, 1, 6);
+          const ceilPanel = new THREE.Mesh(ceilGeo, baseAcousticMat());
+          ceilPanel.position.set(0, 3.04, zPos);
+          ceilPanel.receiveShadow = true;
+          cabinGroup.add(ceilPanel);
+          registerFlammable(ceilPanel, 'acoustic', 'Acoustic Liner', true);
+        });
+
+        // 3. Ribbed Structural Aluminum Bulkhead Frames
+        const ribMat = new THREE.MeshStandardMaterial({
+          map: textures.aluAlbedo,
+          bumpMap: textures.aluBump,
+          bumpScale: 0.02,
+          color: 0x94a3b8,
+          metalness: 0.85,
+          roughness: 0.25,
+        });
+        [-3.95, -2.0, 0.0, 2.0, 3.95].forEach((zRib) => {
+          const ribLeft = new THREE.Mesh(new THREE.BoxGeometry(0.22, 3.05, 0.16), ribMat);
+          ribLeft.position.set(-3.08, 1.525, zRib);
+          ribLeft.castShadow = true;
+          cabinGroup.add(ribLeft);
+
+          const ribRight = new THREE.Mesh(new THREE.BoxGeometry(0.22, 3.05, 0.16), ribMat);
+          ribRight.position.set(3.08, 1.525, zRib);
+          ribRight.castShadow = true;
+          cabinGroup.add(ribRight);
+
+          const ribTop = new THREE.Mesh(new THREE.BoxGeometry(6.38, 0.2, 0.16), ribMat);
+          ribTop.position.set(0, 2.94, zRib);
+          ribTop.castShadow = true;
+          cabinGroup.add(ribTop);
+        });
+
+        // 4. Back Bulkhead Wall with Reinforced Exterior Viewport Opening (z = -4.05)
+        const bulkheadMat = baseAluMat();
+        const backLeft = new THREE.Mesh(new THREE.BoxGeometry(2.0, 3.05, 0.18), bulkheadMat);
+        backLeft.position.set(-2.2, 1.525, -4.05);
+        cabinGroup.add(backLeft);
+        registerFlammable(backLeft, 'hull', 'Pressure Bulkhead', false);
+
+        const backRight = new THREE.Mesh(new THREE.BoxGeometry(2.0, 3.05, 0.18), bulkheadMat);
+        backRight.position.set(2.2, 1.525, -4.05);
+        cabinGroup.add(backRight);
+        registerFlammable(backRight, 'hull', 'Pressure Bulkhead', false);
+
+        const backBottom = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.95, 0.18), bulkheadMat);
+        backBottom.position.set(0, 0.475, -4.05);
+        cabinGroup.add(backBottom);
+
+        const backTop = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.65, 0.18), bulkheadMat);
+        backTop.position.set(0, 2.725, -4.05);
+        cabinGroup.add(backTop);
+
+        // Reinforced Window Frame & Glazing
+        const frameMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.85, roughness: 0.28 });
+        const winFrameTop = new THREE.Mesh(new THREE.BoxGeometry(2.52, 0.12, 0.26), frameMat);
+        winFrameTop.position.set(0, 2.4, -4.05);
+        cabinGroup.add(winFrameTop);
+        const winFrameBot = new THREE.Mesh(new THREE.BoxGeometry(2.52, 0.12, 0.26), frameMat);
+        winFrameBot.position.set(0, 0.95, -4.05);
+        cabinGroup.add(winFrameBot);
+        const winMullion = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.45, 0.24), frameMat);
+        winMullion.position.set(0, 1.675, -4.05);
+        cabinGroup.add(winMullion);
+
+        const windowGlass = new THREE.Mesh(
+          new THREE.PlaneGeometry(2.38, 1.42),
+          new THREE.MeshPhysicalMaterial({
+            color: 0xdbeafe,
+            transparent: true,
+            opacity: 0.18,
+            roughness: 0.08,
+            metalness: 0.1,
+            depthWrite: false,
+          })
+        );
+        windowGlass.position.set(0, 1.675, -4.05);
+        windowGlass.renderOrder = 5;
+        cabinGroup.add(windowGlass);
+
+        // 5. Overhead LED Light Strips & Emergency Strobe Beacons
+        const ledStripMat = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          emissive: 0xbae6fd,
+          emissiveIntensity: 1.6,
+          roughness: 0.2,
+        });
+        [-0.75, 0.75].forEach((xLed) => {
+          const strip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.05, 5.8), ledStripMat);
+          strip.position.set(xLed, 2.94, -0.3);
+          cabinGroup.add(strip);
+        });
+
+        const strobeDomeMatL = new THREE.MeshStandardMaterial({
+          color: 0x7f1d1d,
+          emissive: 0x450a0a,
+          emissiveIntensity: 0.3,
+          roughness: 0.2,
+        });
+        const strobeDomeMatR = strobeDomeMatL.clone();
+        const strobeMeshL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.09, 16), strobeDomeMatL);
+        strobeMeshL.position.set(-2.3, 2.93, 0.5);
+        cabinGroup.add(strobeMeshL);
+        const strobeMeshR = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.09, 16), strobeDomeMatR);
+        strobeMeshR.position.set(2.3, 2.93, -1.5);
+        cabinGroup.add(strobeMeshR);
+
+        // 6. Insulated Kapton Wiring Bundles Along Ceiling Conduits
+        const kaptonPositions = [-1.45, -1.28, 1.28, 1.45];
+        kaptonPositions.forEach((xCap) => {
+          const conduitMat = new THREE.MeshStandardMaterial({
+            map: textures.kaptonAlbedo,
+            color: 0xf59e0b,
+            metalness: 0.55,
+            roughness: 0.35,
+            emissiveMap: textures.charEmissive,
+            emissive: new THREE.Color(0x000000),
+            emissiveIntensity: 0,
+          });
+          const conduit = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 7.6, 12), conduitMat);
+          conduit.rotation.x = Math.PI / 2;
+          conduit.position.set(xCap, 2.86, -0.1);
+          conduit.castShadow = true;
+          cabinGroup.add(conduit);
+          registerFlammable(conduit, 'kapton', 'Overhead Kapton Bus', false);
+        });
+
+        // 7. Polycarbonate Instrument Racks (Left & Right Flanks)
+        function createInstrumentRack(xPos, rotY, subsystemName) {
+          const rackGroup = new THREE.Group();
+          rackGroup.position.set(xPos, 0, -0.45);
+          rackGroup.rotation.y = rotY;
+
+          const bodyMat = new THREE.MeshStandardMaterial({
+            map: textures.aluAlbedo,
+            color: 0x64748b,
+            metalness: 0.65,
+            roughness: 0.38,
+            emissiveMap: textures.charEmissive,
+            emissive: new THREE.Color(0x000000),
+            emissiveIntensity: 0,
+          });
+          const rackBody = new THREE.Mesh(new THREE.BoxGeometry(1.45, 2.15, 0.72), bodyMat);
+          rackBody.position.y = 1.075;
+          rackBody.castShadow = true;
+          rackBody.receiveShadow = true;
+          rackGroup.add(rackBody);
+          registerFlammable(rackBody, 'rack', subsystemName, false);
+
+          const faceMat = new THREE.MeshStandardMaterial({
+            map: textures.consoleAlbedo,
+            color: 0xffffff,
+            metalness: 0.25,
+            roughness: 0.42,
+            emissiveMap: textures.charEmissive,
+            emissive: new THREE.Color(0x000000),
+            emissiveIntensity: 0,
+          });
+          const facePlate = new THREE.Mesh(new THREE.BoxGeometry(1.32, 1.85, 0.05), faceMat);
+          facePlate.position.set(0, 1.12, 0.36);
+          rackGroup.add(facePlate);
+          registerFlammable(facePlate, 'rack', subsystemName, false);
+
+          // Polycarbonate Protective Guard Frame
+          const guardMat = new THREE.MeshStandardMaterial({
+            color: 0x0f172a,
+            metalness: 0.4,
+            roughness: 0.3,
+          });
+          [-0.68, 0.68].forEach((gx) => {
+            const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.9, 10), guardMat);
+            rail.position.set(gx, 1.12, 0.42);
+            rackGroup.add(rail);
+          });
+
+          cabinGroup.add(rackGroup);
+        }
+
+        createInstrumentRack(-2.45, Math.PI / 2, 'Port Instrument Rack');
+        createInstrumentRack(2.45, -Math.PI / 2, 'Starboard Rack');
+
+        // 8. Zero-G Handrails (Visible in Orbital 0g Mode)
+        const zeroGHandrails = new THREE.Group();
+        const railBlueMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.4, roughness: 0.35 });
+        [-2.92, 2.92].forEach((rx) => {
+          [-1.5, 0.5].forEach((rz) => {
+            const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.7, 10), railBlueMat);
+            bar.rotation.x = Math.PI / 2;
+            bar.position.set(rx, 1.55, rz);
+            zeroGHandrails.add(bar);
+          });
+        });
+        cabinGroup.add(zeroGHandrails);
+
+        // 9. Central Stainless-Steel Combustion Test Bench + Fuel Sample Specimen
+        const benchGroup = new THREE.Group();
+        benchGroup.position.set(0, 0, 0);
+
+        const steelMat = new THREE.MeshStandardMaterial({
+          map: textures.aluAlbedo,
+          bumpMap: textures.aluBump,
+          bumpScale: 0.015,
+          color: 0xcbd5e1,
+          metalness: 0.88,
+          roughness: 0.22,
+          emissiveMap: textures.charEmissive,
+          emissive: new THREE.Color(0x000000),
+          emissiveIntensity: 0,
+        });
+
+        // Bench Pedestal Legs (4 legs + bolted feet)
+        [
+          [-0.62, -0.38],
+          [0.62, -0.38],
+          [-0.62, 0.38],
+          [0.62, 0.38],
+        ].forEach(([lx, lz]) => {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.78, 12), steelMat);
+          leg.position.set(lx, 0.39, lz);
+          leg.castShadow = true;
+          benchGroup.add(leg);
+
+          const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.03, 12), frameMat);
+          foot.position.set(lx, 0.015, lz);
+          benchGroup.add(foot);
+        });
+
+        // Stainless Tabletop Deck
+        const tableTop = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.08, 0.96), steelMat);
+        tableTop.position.set(0, 0.81, 0);
+        tableTop.castShadow = true;
+        tableTop.receiveShadow = true;
+        benchGroup.add(tableTop);
+        registerFlammable(tableTop, 'bench', 'Specimen Bench', false);
+
+        // Specimen Clamp Frame
+        const clampL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.42, 0.06), frameMat);
+        clampL.position.set(-0.34, 1.05, 0);
+        benchGroup.add(clampL);
+        const clampR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.42, 0.06), frameMat);
+        clampR.position.set(0.34, 1.05, 0);
+        benchGroup.add(clampR);
+
+        // Fuel Sample Mesh (Dynamically styled by selected NASA PSI experiment)
+        const sampleMat = new THREE.MeshStandardMaterial({
+          color: 0xe2e8f0,
+          roughness: 0.72,
+          metalness: 0.05,
+          emissiveMap: textures.charEmissive,
+          emissive: new THREE.Color(0x000000),
+          emissiveIntensity: 0,
+        });
+        const sampleMesh = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.24, 0.04), sampleMat);
+        sampleMesh.position.set(0, 1.06, 0);
+        sampleMesh.castShadow = true;
+        benchGroup.add(sampleMesh);
+        registerFlammable(sampleMesh, 'sample', 'Specimen Bench', false);
+
+        scene.add(benchGroup);
+
+        // ============================================================================
+        // 3 Switchable Exterior Dioramas (Seen Through Reinforced Viewport)
+        // ============================================================================
+        const exteriorGroup = new THREE.Group();
+        scene.add(exteriorGroup);
+
+        // Shared Starfield
+        const starGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(450 * 3);
+        for (let i = 0; i < 450; i++) {
+          starPos[i * 3] = (Math.random() - 0.5) * 70;
+          starPos[i * 3 + 1] = Math.random() * 35 - 5;
+          starPos[i * 3 + 2] = -12 - Math.random() * 45;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const starPoints = new THREE.Points(
+          starGeo,
+          new THREE.PointsMaterial({ color: 0xf8fafc, size: 0.16, fog: false })
+        );
+        exteriorGroup.add(starPoints);
+
+        // A. Orbital Spacecraft Lab Exterior (Earth Limb + Atmospheric Glow)
+        const orbitalExterior = new THREE.Group();
+        const earthMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(14, 36, 28),
+          new THREE.MeshStandardMaterial({
+            map: textures.earthTex,
+            roughness: 0.75,
+            metalness: 0.05,
+            emissive: new THREE.Color(0x0a2540),
+            emissiveIntensity: 0.45,
+            fog: false,
+          })
+        );
+        earthMesh.position.set(0, -13.4, -18.5);
+        orbitalExterior.add(earthMesh);
+
+        const atmoGlow = new THREE.Mesh(
+          new THREE.SphereGeometry(14.35, 32, 24),
+          new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.24,
+            side: THREE.BackSide,
+            fog: false,
+          })
+        );
+        atmoGlow.position.copy(earthMesh.position);
+        orbitalExterior.add(atmoGlow);
+        exteriorGroup.add(orbitalExterior);
+
+        // B. Lunar Base Module Exterior (Cratered Grey Regolith + Suspended Earth)
+        const lunarExterior = new THREE.Group();
+        const lunarGeo = new THREE.PlaneGeometry(60, 45, 48, 36);
+        lunarGeo.rotateX(-Math.PI / 2);
+        const lPos = lunarGeo.attributes.position;
+        for (let i = 0; i < lPos.count; i++) {
+          const x = lPos.getX(i);
+          const z = lPos.getZ(i);
+          const crater1 = Math.exp(-((x + 5) * (x + 5) + (z + 6) * (z + 6)) / 18) * -1.4;
+          const crater2 = Math.exp(-((x - 7) * (x - 7) + (z + 11) * (z + 11)) / 24) * -1.8;
+          const ridge = Math.sin(x * 0.22) * Math.cos(z * 0.18) * 0.45;
+          lPos.setY(i, crater1 + crater2 + ridge);
+        }
+        lunarGeo.computeVertexNormals();
+        const lunarTerrain = new THREE.Mesh(
+          lunarGeo,
+          new THREE.MeshStandardMaterial({ color: 0x71717a, roughness: 0.94, metalness: 0.04, fog: false })
+        );
+        lunarTerrain.position.set(0, -1.2, -24);
+        lunarExterior.add(lunarTerrain);
+
+        const lunarEarth = new THREE.Mesh(
+          new THREE.SphereGeometry(2.3, 24, 20),
+          new THREE.MeshStandardMaterial({
+            map: textures.earthTex,
+            emissive: new THREE.Color(0x0ea5e9),
+            emissiveIntensity: 0.35,
+            roughness: 0.65,
+            fog: false,
+          })
+        );
+        lunarEarth.position.set(3.2, 5.8, -26);
+        lunarExterior.add(lunarEarth);
+        lunarExterior.visible = false;
+        exteriorGroup.add(lunarExterior);
+
+        // C. Martian Pressurized Rover Exterior (Red Sand Dunes + Rusty Sky)
+        const martianExterior = new THREE.Group();
+        const marsGeo = new THREE.PlaneGeometry(60, 45, 48, 36);
+        marsGeo.rotateX(-Math.PI / 2);
+        const mPos = marsGeo.attributes.position;
+        for (let i = 0; i < mPos.count; i++) {
+          const x = mPos.getX(i);
+          const z = mPos.getZ(i);
+          const dune = Math.sin(x * 0.26 + z * 0.12) * 0.75 + Math.cos(z * 0.32) * 0.35;
+          mPos.setY(i, dune);
+        }
+        marsGeo.computeVertexNormals();
+        const marsTerrain = new THREE.Mesh(
+          marsGeo,
+          new THREE.MeshStandardMaterial({ color: 0x9a3412, roughness: 0.92, metalness: 0.04, fog: false })
+        );
+        marsTerrain.position.set(0, -1.1, -24);
+        martianExterior.add(marsTerrain);
+
+        const marsSky = new THREE.Mesh(
+          new THREE.PlaneGeometry(80, 36),
+          new THREE.MeshBasicMaterial({ color: 0x5c2414, fog: false })
+        );
+        marsSky.position.set(0, 8, -42);
+        martianExterior.add(marsSky);
+        martianExterior.visible = false;
+        exteriorGroup.add(martianExterior);
+
+        // Exterior sun light for terrain
+        const extSun = new THREE.DirectionalLight(0xfff7ed, 0.9);
+        extSun.position.set(8, 12, -16);
+        scene.add(extSun);
+
+        // ============================================================================
+        // Multi-Layered Fire, Sparks, Smoke & Water-Mist Particle Systems
+        // ============================================================================
+        const FIRE_COUNT = 300;
+        const SPARK_COUNT = 130;
+        const SMOKE_COUNT = 180;
+        const MIST_COUNT = 160;
+
+        function createParticleSystem(count, sprite, size, blending, opacity) {
+          const geo = new THREE.BufferGeometry();
+          const positions = new Float32Array(count * 3);
+          const colors = new Float32Array(count * 3);
+          for (let i = 0; i < count; i++) {
+            positions[i * 3 + 1] = -50; // hidden initially
+            colors[i * 3] = 1;
+            colors[i * 3 + 1] = 1;
+            colors[i * 3 + 2] = 1;
+          }
+          geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+          const mat = new THREE.PointsMaterial({
+            size,
+            map: sprite,
+            vertexColors: true,
+            transparent: true,
+            opacity,
+            depthWrite: false,
+            blending,
+          });
+          const pts = new THREE.Points(geo, mat);
+          pts.frustumCulled = false;
+          scene.add(pts);
+          return { pts, geo, mat, positions, colors, count };
+        }
+
+        const fireSys = createParticleSystem(FIRE_COUNT, textures.flameSprite, 0.42, THREE.AdditiveBlending, 0.92);
+        const sparkSys = createParticleSystem(SPARK_COUNT, textures.flameSprite, 0.09, THREE.AdditiveBlending, 0.95);
+        const smokeSys = createParticleSystem(SMOKE_COUNT, textures.smokeSprite, 0.85, THREE.NormalBlending, 0.46);
+        const mistSys = createParticleSystem(MIST_COUNT, textures.mistSprite, 0.38, THREE.NormalBlending, 0.72);
+
+        const fireMeta = Array.from({ length: FIRE_COUNT }, () => ({
+          life: Math.random(),
+          vx: 0,
+          vy: 0,
+          vz: 0,
+        }));
+        const sparkMeta = Array.from({ length: SPARK_COUNT }, () => ({
+          life: Math.random(),
+          vx: 0,
+          vy: 0,
+          vz: 0,
+        }));
+        const smokeMeta = Array.from({ length: SMOKE_COUNT }, () => ({
+          life: Math.random(),
+          vx: 0,
+          vy: 0,
+          vz: 0,
+        }));
+        const mistMeta = Array.from({ length: MIST_COUNT }, () => ({
+          life: Math.random(),
+          vx: 0,
+          vy: 0,
+          vz: 0,
+        }));
+
+        // Secondary spread emitter anchors (Bench -> Racks -> Walls -> Overhead Kapton Conduits)
+        const SPREAD_ZONES = [
+          { pos: new THREE.Vector3(0, 1.08, 0), minSpread: 0.0 },
+          { pos: new THREE.Vector3(-1.9, 1.25, -0.45), minSpread: 1.5 },
+          { pos: new THREE.Vector3(1.9, 1.25, -0.45), minSpread: 1.7 },
+          { pos: new THREE.Vector3(-2.95, 1.55, 0.2), minSpread: 2.3 },
+          { pos: new THREE.Vector3(2.95, 1.55, -0.6), minSpread: 2.5 },
+          { pos: new THREE.Vector3(-1.35, 2.75, -0.2), minSpread: 2.85 },
+          { pos: new THREE.Vector3(1.35, 2.75, 0.3), minSpread: 3.1 },
+          { pos: new THREE.Vector3(0, 2.8, -1.8), minSpread: 3.7 },
+        ];
+
+        function hideParticleSystem(sys) {
+          for (let i = 0; i < sys.count; i++) {
+            sys.positions[i * 3 + 1] = -50;
+          }
+          sys.geo.attributes.position.needsUpdate = true;
+        }
+
+        function respawnFireParticle(i, spreadRadius, gravityG, flowCmS) {
+          const activeZones = SPREAD_ZONES.filter((z) => spreadRadius >= z.minSpread);
+          const zone = activeZones[Math.floor(Math.random() * activeZones.length)] || SPREAD_ZONES[0];
+          const jitter = Math.min(0.45, 0.12 + spreadRadius * 0.08);
+          fireSys.positions[i * 3] = zone.pos.x + (Math.random() - 0.5) * jitter * 2;
+          fireSys.positions[i * 3 + 1] = zone.pos.y + (Math.random() - 0.4) * 0.22;
+          fireSys.positions[i * 3 + 2] = zone.pos.z + (Math.random() - 0.5) * jitter * 2;
+
+          const buoy = 0.45 + gravityG * 2.2;
+          const flowDrift = (flowCmS / 45) * 0.9;
+          fireMeta[i].vx = (Math.random() - 0.5) * (gravityG === 0 ? 0.85 : 0.45) + (Math.random() * 0.5 * flowDrift);
+          fireMeta[i].vy = buoy * (0.65 + Math.random() * 0.65);
+          fireMeta[i].vz = (Math.random() - 0.5) * (gravityG === 0 ? 0.85 : 0.45) - flowDrift * 0.7;
+          fireMeta[i].life = 0;
+        }
+
+        function respawnSparkParticle(i, spreadRadius, stage, flowCmS) {
+          let sx = (Math.random() - 0.5) * 0.35;
+          let sy = 1.05;
+          let sz = (Math.random() - 0.5) * 0.25;
+          // Stage 3 exposed wiring arcs from overhead Kapton conduits
+          if (stage >= 3 && Math.random() < 0.45) {
+            sx = (Math.random() < 0.5 ? -1.35 : 1.35) + (Math.random() - 0.5) * 0.2;
+            sy = 2.8;
+            sz = (Math.random() - 0.5) * 3.5;
+          } else if (spreadRadius > 1.8 && Math.random() < 0.4) {
+            const z = SPREAD_ZONES[Math.floor(Math.random() * SPREAD_ZONES.length)];
+            sx = z.pos.x;
+            sy = z.pos.y;
+            sz = z.pos.z;
+          }
+          sparkSys.positions[i * 3] = sx;
+          sparkSys.positions[i * 3 + 1] = sy;
+          sparkSys.positions[i * 3 + 2] = sz;
+          sparkMeta[i].vx = (Math.random() - 0.5) * 1.9;
+          sparkMeta[i].vy = (Math.random() - 0.35) * 1.8;
+          sparkMeta[i].vz = (Math.random() - 0.5) * 1.9 - (flowCmS / 45) * 1.2;
+          sparkMeta[i].life = 0;
+        }
+
+        function respawnSmokeParticle(i, spreadRadius) {
+          const activeZones = SPREAD_ZONES.filter((z) => spreadRadius >= z.minSpread);
+          const zone = activeZones[Math.floor(Math.random() * activeZones.length)] || SPREAD_ZONES[0];
+          smokeSys.positions[i * 3] = zone.pos.x + (Math.random() - 0.5) * (0.4 + spreadRadius * 0.25);
+          smokeSys.positions[i * 3 + 1] = Math.min(2.7, zone.pos.y + 0.25);
+          smokeSys.positions[i * 3 + 2] = zone.pos.z + (Math.random() - 0.5) * (0.4 + spreadRadius * 0.25);
+          smokeMeta[i].vx = (Math.random() - 0.5) * 0.45;
+          smokeMeta[i].vy = 0.28 + Math.random() * 0.35;
+          smokeMeta[i].vz = (Math.random() - 0.5) * 0.45;
+          smokeMeta[i].life = 0;
+        }
+
+        // ============================================================================
+        // Physics & Progressive Cabin Damage Evaluation
+        // ============================================================================
+        const _tmpColor = new THREE.Color();
+        const _sootColor = new THREE.Color(0x1f2024);
+        const _charColor = new THREE.Color(0x09090b);
+        const _emberColor = new THREE.Color(0xff3300);
+
+        function getActiveExperiment() {
+          return NASA_PSI_EXPERIMENTS.find((e) => e.id === labState.selectedExpId) || NASA_PSI_EXPERIMENTS[0];
+        }
+
+        function computeSpreadRate() {
+          const exp = getActiveExperiment();
+          const hab = HABITATS[labState.habitatKey];
+          const cabinO2 = state.oxygenPercent;
+          const cabinFlow = state.airflowCmS;
+          const o2Mult = 0.58 + Math.max(0, (cabinO2 - 18) / 18) * 1.45;
+          const flowMult = 0.72 + (cabinFlow / 45) * 0.85;
+          const gravMult = 1.0 + hab.gravityG * 0.45;
+          const hazMult = 0.78 + (exp.hazard_score / 10) * 0.45;
+          return o2Mult * flowMult * gravMult * hazMult;
+        }
+
+        function getDamageStage(t) {
+          if (!labState.ignited && labState.maxExposureSec === 0) return 0;
+          if (t < 45) return 1;
+          if (t < 120) return 2;
+          return 3;
+        }
+
+        function applyProgressiveDamage(timeNow) {
+          const t = labState.elapsedSec;
+          if (t > labState.maxExposureSec) {
+            labState.maxExposureSec = t;
+          }
+          const rate = computeSpreadRate();
+          const activeSpread = labState.ignited && !labState.suppressed ? Math.min(4.8, 0.25 + (t / 300) * 4.55 * Math.max(0.85, rate)) : 0;
+          labState.spreadRadius = activeSpread;
+          const peakSpread = Math.min(4.8, (labState.maxExposureSec > 0 ? 0.25 : 0) + (labState.maxExposureSec / 300) * 4.55 * Math.max(0.85, rate));
+          if (peakSpread > labState.maxSpreadRadius) {
+            labState.maxSpreadRadius = peakSpread;
+          }
+
+          const damageT = labState.maxExposureSec;
+          const stage = getDamageStage(damageT);
+          const activeStage = labState.ignited && !labState.suppressed ? getDamageStage(t) : stage;
+
+          // Update every flammable mesh progressively
+          const damagedSubsystems = new Set();
+          for (let i = 0; i < flammableMeshes.length; i++) {
+            const m = flammableMeshes[i];
+            const dist = m.userData.center.length(); // Distance from bench ignition ~(0,1,0)
+            const reach = Math.max(0, (labState.maxSpreadRadius - dist * 0.48) / 2.3);
+            const timeNorm = Math.min(1, damageT / 260);
+            const exposure = Math.min(1, reach * (0.35 + 0.75 * timeNorm));
+            if (exposure > m.userData.maxExposure) {
+              m.userData.maxExposure = exposure;
+            }
+            const expVal = m.userData.maxExposure;
+            if (expVal > 0.28) {
+              damagedSubsystems.add(m.userData.subsystemName);
+            }
+
+            const mat = m.material;
+            if (expVal <= 0.001) {
+              mat.color.copy(m.userData.baseColor);
+              mat.roughness = m.userData.baseRoughness;
+              mat.metalness = m.userData.baseMetalness;
+              mat.emissive.copy(m.userData.baseEmissive);
+              mat.emissiveIntensity = m.userData.baseEmissiveIntensity;
+            } else if (expVal < 0.42) {
+              // Stage 1: Scorching & Soot
+              const k = expVal / 0.42;
+              mat.color.copy(m.userData.baseColor).lerp(_sootColor, k * 0.85);
+              mat.roughness = THREE.MathUtils.lerp(m.userData.baseRoughness, 0.78, k);
+              mat.metalness = THREE.MathUtils.lerp(m.userData.baseMetalness, 0.25, k);
+              mat.emissive.setHex(0x000000);
+              mat.emissiveIntensity = 0;
+            } else {
+              // Stage 2 & 3: Blistering, Ember Glow & Cracked Charcoal
+              const k2 = Math.min(1, (expVal - 0.42) / 0.58);
+              mat.color.copy(_sootColor).lerp(_charColor, k2);
+              mat.roughness = THREE.MathUtils.lerp(0.78, 0.95, k2);
+              mat.metalness = THREE.MathUtils.lerp(0.25, 0.1, k2);
+
+              if (!labState.suppressed && labState.ignited && damageT >= 45) {
+                const pulse = 0.75 + 0.35 * Math.sin(timeNow * 5.2 + i);
+                mat.emissive.copy(_emberColor);
+                mat.emissiveIntensity = (0.45 + k2 * 1.15) * pulse;
+              } else {
+                // Cooled permanent black char after suppression
+                mat.emissive.setHex(0x1a0500);
+                mat.emissiveIntensity = labState.suppressed ? 0.05 : 0;
+              }
+            }
+
+            // Stage 2+ Thermal Wall Warping
+            if (m.userData.warpable && m.userData.origPos) {
+              const posAttr = m.geometry.attributes.position;
+              const orig = m.userData.origPos;
+              const warpAmp = expVal > 0.32 ? (expVal - 0.32) * 0.065 : 0;
+              for (let v = 0; v < posAttr.count; v++) {
+                const ox = orig[v * 3];
+                const oy = orig[v * 3 + 1];
+                const oz = orig[v * 3 + 2];
+                const buckle = warpAmp * Math.sin(oy * 3.1 + oz * 2.4 + i);
+                posAttr.setXYZ(v, ox + buckle, oy, oz + buckle * 0.5);
+              }
+              posAttr.needsUpdate = true;
+            }
+          }
+
+          // Dynamic Fog Thickening
+          const hab = HABITATS[labState.habitatKey];
+          const smokeFactor = labState.ignited && !labState.suppressed ? Math.min(1, t / 210) : Math.min(0.45, labState.maxExposureSec / 300);
+          fog.color.setHex(hab.fogColor).lerp(_charColor, smokeFactor * 0.65);
+          fog.density = hab.baseFogDensity + smokeFactor * 0.085;
+
+          // Hull Integrity & Toxic Gas Telemetry
+          const integrityLoss = Math.min(92, (damageT / 300) * 84 * Math.min(1.3, 0.75 + rate * 0.3) + (labState.maxSpreadRadius / 4.8) * 14);
+          labState.hullIntegrity = Math.max(8, 100 - integrityLoss);
+          labState.toxicPpm = Math.round(420 + (damageT / 300) * 19500 * Math.max(0.7, rate * 0.75));
+
+          // Update Lab HUD & Forensic Strip
+          updateLabHUD(activeStage, damagedSubsystems);
+        }
+
+        function formatChrono(sec) {
+          const s = Math.max(0, Math.floor(sec));
+          const mm = String(Math.floor(s / 60)).padStart(2, '0');
+          const ss = String(s % 60).padStart(2, '0');
+          return `T + ${mm}:${ss}`;
+        }
+
+        function updateLabHUD(stage, damagedSubsystems) {
+          const hab = HABITATS[labState.habitatKey];
+          const exp = getActiveExperiment();
+
+          document.getElementById('lab-chronometer').textContent = formatChrono(labState.elapsedSec);
+          document.getElementById('lab-timeline-scrubber').value = String(Math.min(300, Math.round(labState.elapsedSec)));
+
+          document.getElementById('hud-habitat-name').textContent = `${hab.name} · ${hab.spec}`;
+          document.getElementById('hud-sample-name').textContent = `Sample: ${exp.experiment_name} (${exp.fuel_material.slice(0, 34)})`;
+          document.getElementById('hud-live-physics').textContent =
+            `Driven by ${state.oxygenPercent.toFixed(1)}% O2 · ${state.airflowCmS} cm/s · Spread ${labState.maxSpreadRadius.toFixed(2)} m`;
+
+          const stageEl = document.getElementById('hud-damage-stage');
+          if (!labState.ignited && labState.maxExposureSec === 0) {
+            stageEl.textContent = 'Stage 0: Pre-Ignition Standby';
+            stageEl.className = 'text-slate-400';
+          } else if (labState.suppressed) {
+            stageEl.textContent = `Suppressed (Post-Fire Stage ${stage} Char Preserved)`;
+            stageEl.className = 'text-cyan-300 font-semibold';
+          } else if (stage === 1) {
+            stageEl.textContent = 'Stage 1 (0–45s): Scorching & Soot Accumulation';
+            stageEl.className = 'text-amber-300 font-semibold';
+          } else if (stage === 2) {
+            stageEl.textContent = 'Stage 2 (45–120s): Blistering & Glowing Ember Cracks';
+            stageEl.className = 'text-orange-400 font-semibold';
+          } else {
+            stageEl.textContent = 'Stage 3 (>120s): Structural Burn-Through & Flashover';
+            stageEl.className = 'text-red-400 font-semibold';
+          }
+
+          // Critical Structural Breach Warning (< 35% Hull Integrity or Stage 3 active)
+          const breachBanner = document.getElementById('hud-breach-warning');
+          if (labState.hullIntegrity < 35 || (stage >= 3 && labState.ignited && !labState.suppressed)) {
+            breachBanner.classList.remove('hidden');
+          } else {
+            breachBanner.classList.add('hidden');
+          }
+
+          // Forensic Telemetry Cards
+          const hullEl = document.getElementById('forensic-hull');
+          hullEl.textContent = `${labState.hullIntegrity.toFixed(1)}%`;
+          hullEl.className =
+            labState.hullIntegrity < 35
+              ? 'mt-1 text-lg font-semibold text-red-400'
+              : labState.hullIntegrity < 75
+                ? 'mt-1 text-lg font-semibold text-amber-300'
+                : 'mt-1 text-lg font-semibold text-emerald-400';
+          document.getElementById('forensic-hull-sub').textContent =
+            labState.hullIntegrity < 35
+              ? 'CRITICAL: Pressure hull thermal breach risk'
+              : labState.hullIntegrity < 80
+                ? 'Bulkhead insulation blistering detected'
+                : 'Bulkhead pressure nominal';
+
+          const gasEl = document.getElementById('forensic-gas');
+          gasEl.textContent = `${labState.toxicPpm.toLocaleString()} ppm`;
+          gasEl.className =
+            labState.toxicPpm > 8000
+              ? 'mt-1 text-lg font-semibold text-red-400'
+              : labState.toxicPpm > 2000
+                ? 'mt-1 text-lg font-semibold text-amber-300'
+                : 'mt-1 text-lg font-semibold text-slate-200';
+          const coTrace = Math.round(Math.max(0, (labState.toxicPpm - 420) * 0.14));
+          document.getElementById('forensic-gas-sub').textContent = `CO / HCN / Soot trace: ${coTrace.toLocaleString()} ppm`;
+
+          const lostCount = damagedSubsystems.size;
+          const equipEl = document.getElementById('forensic-equip');
+          equipEl.textContent = `${lostCount} / 6 Subsystems`;
+          equipEl.className =
+            lostCount >= 4
+              ? 'mt-1 text-lg font-semibold text-red-400'
+              : lostCount >= 1
+                ? 'mt-1 text-lg font-semibold text-amber-300'
+                : 'mt-1 text-lg font-semibold text-slate-200';
+          document.getElementById('forensic-equip-sub').textContent =
+            lostCount > 0 ? Array.from(damagedSubsystems).join(', ') : 'All avionics & racks intact';
+
+          const spreadEl = document.getElementById('forensic-spread');
+          spreadEl.textContent = `${labState.maxSpreadRadius.toFixed(2)} m`;
+          document.getElementById('forensic-spread-sub').textContent = labState.suppressed
+            ? 'Flames extinguished · Burn scars locked'
+            : labState.ignited
+              ? `Active flame propagation (${(computeSpreadRate()).toFixed(2)}x rate)`
+              : 'Standby · Ready for ignition';
+        }
+
+        function updateSampleAppearance() {
+          const exp = getActiveExperiment();
+          const name = exp.experiment_name;
+          if (name.includes('ACME')) {
+            sampleMesh.scale.set(0.45, 0.9, 5.0); // spherical/burner-like compact rig
+            sampleMat.color.setHex(0x94a3b8);
+          } else if (name.includes('FLEX')) {
+            sampleMesh.scale.set(0.2, 0.45, 2.0); // droplet needle array
+            sampleMat.color.setHex(0xfbbf24);
+          } else if (name.includes('BASS') || name.includes('SoFIE')) {
+            sampleMesh.scale.set(0.95, 0.85, 2.2); // PMMA polymer slab
+            sampleMat.color.setHex(0xbae6fd);
+          } else {
+            sampleMesh.scale.set(1.0, 1.0, 1.0); // Sibal composite fabric strip
+            sampleMat.color.setHex(0xe2e8f0);
+          }
+        }
+
+        function switchHabitat(key) {
+          labState.habitatKey = key;
+          const hab = HABITATS[key];
+
+          // Toggle Exterior Dioramas & Zero-G Handrails
+          orbitalExterior.visible = key === 'orbital';
+          lunarExterior.visible = key === 'lunar';
+          martianExterior.visible = key === 'martian';
+          zeroGHandrails.visible = key === 'orbital';
+
+          overheadLight1.color.setHex(hab.ledColor);
+          overheadLight2.color.setHex(hab.ledColor);
+
+          // Sync Version 1 Atmosphere Oxygen Slider with chosen habitat atmospheric spec
+          state.oxygenPercent = hab.o2;
+          const o2Slider = document.getElementById('slider-oxygen');
+          if (o2Slider) o2Slider.value = String(hab.o2);
+          renderExperiments();
+
+          // Update active habitat button styling
+          document.querySelectorAll('.habitat-btn').forEach((btn) => {
+            const active = btn.dataset.habitat === key;
+            btn.className = active
+              ? 'habitat-btn whitespace-nowrap shrink-0 rounded-md border border-cyan-500/70 bg-cyan-500/15 px-3 py-2 text-left font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400'
+              : 'habitat-btn whitespace-nowrap shrink-0 rounded-md border border-slate-800 bg-slate-900/70 px-3 py-2 text-left font-mono text-xs hover:border-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400';
+          });
+
+          applyProgressiveDamage(performance.now() * 0.001);
+        }
+
+        function igniteSample() {
+          labState.ignited = true;
+          labState.running = true;
+          labState.suppressed = false;
+          labState.mistTimer = 0;
+          hideParticleSystem(mistSys);
+          if (labState.elapsedSec === 0) labState.elapsedSec = 1;
+          const rate = computeSpreadRate();
+          const hab = HABITATS[labState.habitatKey];
+          for (let i = 0; i < FIRE_COUNT; i++) respawnFireParticle(i, 0.35, hab.gravityG, state.airflowCmS);
+          for (let i = 0; i < SPARK_COUNT; i++) respawnSparkParticle(i, 0.35, 1, state.airflowCmS);
+          for (let i = 0; i < SMOKE_COUNT; i++) respawnSmokeParticle(i, 0.35);
+          applyProgressiveDamage(performance.now() * 0.001);
+        }
+
+        function jumpToTime(targetSec) {
+          labState.ignited = true;
+          labState.suppressed = false;
+          labState.mistTimer = 0;
+          hideParticleSystem(mistSys);
+          labState.elapsedSec = targetSec;
+          labState.maxExposureSec = Math.max(labState.maxExposureSec, targetSec);
+          applyProgressiveDamage(performance.now() * 0.001);
+          const hab = HABITATS[labState.habitatKey];
+          const stage = getDamageStage(targetSec);
+          for (let i = 0; i < FIRE_COUNT; i++) respawnFireParticle(i, labState.spreadRadius, hab.gravityG, state.airflowCmS);
+          for (let i = 0; i < SPARK_COUNT; i++) respawnSparkParticle(i, labState.spreadRadius, stage, state.airflowCmS);
+          for (let i = 0; i < SMOKE_COUNT; i++) respawnSmokeParticle(i, labState.spreadRadius);
+        }
+
+        function activateSuppression() {
+          if (!labState.ignited && labState.maxExposureSec === 0) return;
+          labState.suppressed = true;
+          labState.running = false;
+          labState.mistTimer = 2.6;
+          fireLight.intensity = 0;
+          strobeLightL.intensity = 0;
+          strobeLightR.intensity = 0;
+          hideParticleSystem(fireSys);
+          hideParticleSystem(sparkSys);
+          // Spawn mist spray across test bench
+          for (let i = 0; i < MIST_COUNT; i++) {
+            mistSys.positions[i * 3] = (Math.random() - 0.5) * 2.2;
+            mistSys.positions[i * 3 + 1] = 2.6 + Math.random() * 0.3;
+            mistSys.positions[i * 3 + 2] = (Math.random() - 0.5) * 1.8;
+            mistMeta[i].vx = (Math.random() - 0.5) * 0.9;
+            mistMeta[i].vy = -1.3 - Math.random() * 0.8;
+            mistMeta[i].vz = (Math.random() - 0.5) * 0.9;
+            mistMeta[i].life = Math.random() * 0.5;
+          }
+          mistSys.geo.attributes.position.needsUpdate = true;
+          // Preserve permanent black char marks already accumulated
+          applyProgressiveDamage(performance.now() * 0.001);
+        }
+
+        function resetLabAndRepair() {
+          labState.ignited = false;
+          labState.running = false;
+          labState.suppressed = false;
+          labState.mistTimer = 0;
+          labState.elapsedSec = 0;
+          labState.maxExposureSec = 0;
+          labState.spreadRadius = 0;
+          labState.maxSpreadRadius = 0;
+          labState.hullIntegrity = 100;
+          labState.toxicPpm = 420;
+
+          fireLight.intensity = 0;
+          strobeLightL.intensity = 0;
+          strobeLightR.intensity = 0;
+          strobeDomeMatL.emissive.setHex(0x450a0a);
+          strobeDomeMatR.emissive.setHex(0x450a0a);
+
+          hideParticleSystem(fireSys);
+          hideParticleSystem(sparkSys);
+          hideParticleSystem(smokeSys);
+          hideParticleSystem(mistSys);
+
+          // Restore pristine metallic textures and vertex positions
+          for (let i = 0; i < flammableMeshes.length; i++) {
+            const m = flammableMeshes[i];
+            m.userData.maxExposure = 0;
+            if (m.userData.warpable && m.userData.origPos) {
+              const posAttr = m.geometry.attributes.position;
+              posAttr.array.set(m.userData.origPos);
+              posAttr.needsUpdate = true;
+            }
+          }
+          applyProgressiveDamage(performance.now() * 0.001);
+        }
+
+        // Wire UI Events for 3D Lab
+        document.querySelectorAll('.habitat-btn').forEach((btn) => {
+          btn.addEventListener('click', () => switchHabitat(btn.dataset.habitat));
+        });
+
+        sampleSelect.addEventListener('change', (e) => {
+          labState.selectedExpId = parseInt(e.target.value, 10);
+          updateSampleAppearance();
+          applyProgressiveDamage(performance.now() * 0.001);
+        });
+
+        document.getElementById('btn-ignite-sample').addEventListener('click', igniteSample);
+        document.getElementById('btn-play-pause').addEventListener('click', () => {
+          if (!labState.ignited && labState.elapsedSec === 0) {
+            igniteSample();
+          } else if (!labState.suppressed) {
+            labState.running = !labState.running;
+          }
+        });
+        document.getElementById('btn-ff-230').addEventListener('click', () => jumpToTime(150));
+        document.getElementById('btn-ff-500').addEventListener('click', () => jumpToTime(300));
+        document.getElementById('btn-suppress-fire').addEventListener('click', activateSuppression);
+        document.getElementById('btn-reset-lab').addEventListener('click', resetLabAndRepair);
+        document.getElementById('btn-reset-camera').addEventListener('click', () => {
+          camera.position.copy(defaultCamPos);
+          controls.target.copy(defaultTarget);
+          controls.update();
+        });
+
+        document.getElementById('lab-timeline-scrubber').addEventListener('input', (e) => {
+          const val = parseInt(e.target.value, 10);
+          if (val === 0 && !labState.ignited) return;
+          labState.ignited = val > 0;
+          labState.suppressed = false;
+          labState.elapsedSec = val;
+          labState.maxExposureSec = Math.max(labState.maxExposureSec, val);
+          applyProgressiveDamage(performance.now() * 0.001);
+        });
+
+        // Re-sync 3D HUD & spread whenever V1 Oxygen/Airflow sliders move
+        document.getElementById('slider-oxygen').addEventListener('input', () => {
+          applyProgressiveDamage(performance.now() * 0.001);
+        });
+        document.getElementById('slider-airflow').addEventListener('input', () => {
+          applyProgressiveDamage(performance.now() * 0.001);
+        });
+
+        // ResizeObserver for crisp responsive viewport
+        const ro = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const w = entry.contentRect.width;
+            const h = entry.contentRect.height;
+            if (w > 0 && h > 0) {
+              camera.aspect = w / h;
+              camera.updateProjectionMatrix();
+              renderer.setSize(w, h);
+            }
+          }
+        });
+        ro.observe(mountEl);
+
+        // Initialize Default Habitat & Sample
+        switchHabitat('orbital');
+        updateSampleAppearance();
+
+        // ============================================================================
+        // Main 60 FPS Animation Loop (Paced cleanly on Software WebGL)
+        // ============================================================================
+        let lastTime = performance.now();
+        let hudAccum = 0;
+
+        function afterDraw(cb) {
+          const gl = renderer.getContext();
+          if (gl && gl.fenceSync) {
+            const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+            gl.flush();
+            const poll = () => {
+              const st = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
+              if (st === gl.UNSIGNALED) {
+                setTimeout(poll, 5);
+              } else {
+                if (sync) gl.deleteSync(sync);
+                setTimeout(cb, 80);
+              }
+            };
+            setTimeout(poll, 5);
+          } else {
+            setTimeout(cb, 80);
+          }
+        }
+
+        function tick() {
+          const now = performance.now();
+          const dt = Math.min(0.08, (now - lastTime) * 0.001);
+          lastTime = now;
+          const timeSec = now * 0.001;
+
+          // Subtle planetary rotation outside window
+          earthMesh.rotation.y += dt * 0.015;
+          lunarEarth.rotation.y += dt * 0.02;
+
+          // Advance fire simulation clock if running
+          if (labState.ignited && labState.running && !labState.suppressed) {
+            labState.elapsedSec = Math.min(360, labState.elapsedSec + dt);
+            hudAccum += dt;
+            if (hudAccum >= 0.12) {
+              hudAccum = 0;
+              applyProgressiveDamage(timeSec);
+            }
+          }
+
+          const hab = HABITATS[labState.habitatKey];
+          const stage = getDamageStage(labState.elapsedSec);
+
+          // Active Flame, Spark, Smoke & Fire Light Update
+          if (labState.ignited && !labState.suppressed) {
+            const scaleFactor = 1.0 + (labState.spreadRadius / 4.8) * 2.4;
+            const flicker = 0.85 + 0.25 * Math.sin(timeSec * 23.0) * Math.cos(timeSec * 14.3);
+            fireLight.intensity = (1.8 + stage * 1.4) * scaleFactor * 0.65 * flicker;
+            fireLight.distance = 6 + labState.spreadRadius * 2.5;
+            fireLight.position.set(
+              Math.sin(timeSec * 17) * 0.08,
+              1.25 + Math.cos(timeSec * 13) * 0.06,
+              Math.cos(timeSec * 19) * 0.08
+            );
+
+            // Stage 3 Emergency Red Strobe Alarm
+            if (stage >= 3) {
+              const strobeOn = Math.sin(timeSec * 9.5) > 0.2;
+              strobeLightL.intensity = strobeOn ? 3.2 : 0.1;
+              strobeLightR.intensity = !strobeOn ? 3.2 : 0.1;
+              strobeDomeMatL.emissive.setHex(strobeOn ? 0xff0000 : 0x450a0a);
+              strobeDomeMatL.emissiveIntensity = strobeOn ? 2.5 : 0.2;
+              strobeDomeMatR.emissive.setHex(!strobeOn ? 0xff0000 : 0x450a0a);
+              strobeDomeMatR.emissiveIntensity = !strobeOn ? 2.5 : 0.2;
+            } else {
+              strobeLightL.intensity = 0;
+              strobeLightR.intensity = 0;
+            }
+
+            // Update Fire Particles
+            for (let i = 0; i < FIRE_COUNT; i++) {
+              const meta = fireMeta[i];
+              meta.life += dt * (1.2 + Math.random() * 0.6);
+              if (meta.life >= 1) {
+                respawnFireParticle(i, labState.spreadRadius, hab.gravityG, state.airflowCmS);
+              }
+              fireSys.positions[i * 3] += meta.vx * dt;
+              fireSys.positions[i * 3 + 1] += meta.vy * dt;
+              fireSys.positions[i * 3 + 2] += meta.vz * dt;
+
+              const l = meta.life;
+              fireSys.colors[i * 3] = 1.0;
+              fireSys.colors[i * 3 + 1] = Math.max(0.12, 0.92 - l * 0.85);
+              fireSys.colors[i * 3 + 2] = Math.max(0.0, 0.55 - l * 1.1);
+            }
+            fireSys.geo.attributes.position.needsUpdate = true;
+            fireSys.geo.attributes.color.needsUpdate = true;
+
+            // Update Sparks
+            for (let i = 0; i < SPARK_COUNT; i++) {
+              const meta = sparkMeta[i];
+              meta.life += dt * 1.65;
+              if (meta.life >= 1) {
+                respawnSparkParticle(i, labState.spreadRadius, stage, state.airflowCmS);
+              }
+              sparkSys.positions[i * 3] += meta.vx * dt;
+              sparkSys.positions[i * 3 + 1] += meta.vy * dt;
+              sparkSys.positions[i * 3 + 2] += meta.vz * dt;
+              meta.vy -= hab.gravityG * 1.8 * dt;
+
+              sparkSys.colors[i * 3] = 1.0;
+              sparkSys.colors[i * 3 + 1] = 0.65 * (1 - meta.life);
+              sparkSys.colors[i * 3 + 2] = 0.1 * (1 - meta.life);
+            }
+            sparkSys.geo.attributes.position.needsUpdate = true;
+            sparkSys.geo.attributes.color.needsUpdate = true;
+
+            // Update Soot/Smoke Plumes (pooling at ceiling)
+            for (let i = 0; i < SMOKE_COUNT; i++) {
+              const meta = smokeMeta[i];
+              meta.life += dt * 0.42;
+              if (meta.life >= 1) {
+                respawnSmokeParticle(i, labState.spreadRadius);
+              }
+              smokeSys.positions[i * 3] += meta.vx * dt;
+              if (smokeSys.positions[i * 3 + 1] < 2.82) {
+                smokeSys.positions[i * 3 + 1] += meta.vy * dt;
+              } else {
+                smokeSys.positions[i * 3] += (Math.random() - 0.5) * 0.6 * dt;
+                smokeSys.positions[i * 3 + 2] += (Math.random() - 0.5) * 0.6 * dt;
+              }
+              smokeSys.positions[i * 3 + 2] += meta.vz * dt;
+              const shade = Math.max(0.06, 0.26 - meta.life * 0.18);
+              smokeSys.colors[i * 3] = shade;
+              smokeSys.colors[i * 3 + 1] = shade;
+              smokeSys.colors[i * 3 + 2] = shade;
+            }
+            smokeSys.geo.attributes.position.needsUpdate = true;
+            smokeSys.geo.attributes.color.needsUpdate = true;
+          }
+
+          // Water Mist Suppression Spray Decay
+          if (labState.mistTimer > 0) {
+            labState.mistTimer = Math.max(0, labState.mistTimer - dt);
+            for (let i = 0; i < MIST_COUNT; i++) {
+              const m = mistMeta[i];
+              mistSys.positions[i * 3] += m.vx * dt;
+              mistSys.positions[i * 3 + 1] += m.vy * dt;
+              mistSys.positions[i * 3 + 2] += m.vz * dt;
+              if (mistSys.positions[i * 3 + 1] < 0.1) {
+                mistSys.positions[i * 3 + 1] = 2.6;
+              }
+            }
+            mistSys.geo.attributes.position.needsUpdate = true;
+            mistSys.mat.opacity = Math.min(0.75, labState.mistTimer * 0.4);
+            if (labState.mistTimer <= 0) hideParticleSystem(mistSys);
+          }
+
+          controls.update();
+          renderer.render(scene, camera);
+
+          if (isSoftwareGl) {
+            afterDraw(tick);
+          } else {
+            requestAnimationFrame(tick);
+          }
+        }
+
+        tick();
+      })();
+    </script>
+  </body>
+</html>

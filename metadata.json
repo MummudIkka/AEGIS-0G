@@ -1,0 +1,6 @@
+{
+  "name": "AEGIS-0G: NASA Microgravity Combustion & Habitat Fire Safety Lab",
+  "description": "Self-contained NASA Mission Control web application combining the NASA PSI microgravity combustion explorer with an interactive Three.js 3D habitat flammability test lab.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
